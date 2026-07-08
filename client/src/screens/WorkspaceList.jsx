@@ -7,13 +7,14 @@ export default function WorkspaceList() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // In real app, fetch from local daemon via relay
-    // Mocking for now to show the UI
-    setWorkspaces([
-      { id: 'antigravity-remote', name: 'antigravity-remote', path: 'C:/Users/fokae/Documents/antigravity/antigravity-remote' },
-      { id: 'wechat-crm', name: 'wechat-crm', path: 'C:/Users/fokae/Documents/Codex/wechat-crm' },
-      { id: 'knowledge-base', name: 'knowledge-base', path: 'C:/Users/fokae/Documents/Codex/knowledge-base' },
-    ]);
+    fetch('http://100.102.126.57:8080/api/workspaces')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setWorkspaces(data.data);
+        }
+      })
+      .catch(err => console.error('Failed to fetch workspaces:', err));
   }, []);
 
   return (

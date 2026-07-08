@@ -21,6 +21,7 @@ function getWorkspaces() {
             const hasAgents = fs.existsSync(path.join(fullPath, '.agents'));
             if (hasGit || hasAgents) {
                 workspaces.push({
+                    id: dir.name,
                     name: dir.name,
                     path: fullPath
                 });

@@ -40,7 +40,7 @@ function connectToRelay() {
 connectToRelay();
 
 // Route all HTTP traffic
-app.all('/*', (req, res) => {
+app.use((req, res) => {
     proxy.web(req, res, (err) => {
         console.error('HTTP Proxy Error:', err.message);
         res.status(502).send('Bad Gateway');
