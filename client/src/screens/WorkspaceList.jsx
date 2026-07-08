@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Folder, Filter, FolderPlus, MoreHorizontal } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Folder, Filter, FolderPlus, MoreHorizontal, Archive } from 'lucide-react';
 
 // Format date relative (e.g. 1d, 4h)
 const formatRelativeDate = (dateString) => {
@@ -17,6 +17,13 @@ export default function WorkspaceList() {
   const [pinned, setPinned] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [archived, setArchived] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('archivedThreads')) || [];
     } catch {
       return [];
     }
@@ -45,14 +52,15 @@ export default function WorkspaceList() {
     return null;
   };
 
-  const pinnedThreads = threads.filter(t => pinned.includes(t.id));
+  const activeThreads = threads.filter(t => !archived.includes(t.id));
+  const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads
   const projectsMap = {};
   workspaces.forEach(ws => projectsMap[ws.name] = []);
   const looseThreads = [];
 
-  threads.forEach(t => {
+  activeThreads.forEach(t => {
     const ws = getWorkspaceForThread(t);
     if (ws && projectsMap[ws] !== undefined) {
       projectsMap[ws].push(t);
@@ -75,6 +83,13 @@ export default function WorkspaceList() {
     localStorage.setItem('pinnedThreads', JSON.stringify(newPinned));
   };
 
+  const archiveThread = (e, threadId) => {
+    e.stopPropagation();
+    const newArchived = [...archived, threadId];
+    setArchived(newArchived);
+    localStorage.setItem('archivedThreads', JSON.stringify(newArchived));
+  };
+
   const renderPinButton = (t) => (
     <div onClick={(e) => togglePin(e, t.id)} style={{ padding: '8px', color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
       <Filter size={16} /> {/* Placeholder for Pin until imported */}
@@ -95,8 +110,13 @@ export default function WorkspaceList() {
                   <div className="list-item-title">{t.title}</div>
                   <div className="list-item-subtitle">{getWorkspaceForThread(t) || 'global'}</div>
                 </div>
-                <div className="list-item-right" onClick={(e) => togglePin(e, t.id)} style={{color: 'var(--text-primary)'}}>
-                  {formatRelativeDate(t.lastUpdated)}
+                <div className="list-item-right">
+                  <div onClick={(e) => togglePin(e, t.id)} style={{color: 'var(--text-primary)'}}>
+                    {formatRelativeDate(t.lastUpdated)}
+                  </div>
+                  <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
+                    <Archive size={14} />
+                  </div>
                 </div>
               </div>
             ))}
@@ -128,8 +148,13 @@ export default function WorkspaceList() {
                     <div className="list-item-content">
                       <div className="list-item-title">{t.title}</div>
                     </div>
-                    <div className="list-item-right" onClick={(e) => togglePin(e, t.id)} style={{color: pinned.includes(t.id) ? 'var(--text-primary)' : 'inherit'}}>
-                      {formatRelativeDate(t.lastUpdated)}
+                    <div className="list-item-right">
+                      <div onClick={(e) => togglePin(e, t.id)} style={{color: pinned.includes(t.id) ? 'var(--text-primary)' : 'inherit'}}>
+                        {formatRelativeDate(t.lastUpdated)}
+                      </div>
+                      <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
+                        <Archive size={14} />
+                      </div>
                     </div>
                   </div>
                 ))
@@ -146,8 +171,13 @@ export default function WorkspaceList() {
               <div className="list-item-content">
                 <div className="list-item-title">{t.title}</div>
               </div>
-              <div className="list-item-right" onClick={(e) => togglePin(e, t.id)} style={{color: pinned.includes(t.id) ? 'var(--text-primary)' : 'inherit'}}>
-                {formatRelativeDate(t.lastUpdated)}
+              <div className="list-item-right">
+                <div onClick={(e) => togglePin(e, t.id)} style={{color: pinned.includes(t.id) ? 'var(--text-primary)' : 'inherit'}}>
+                  {formatRelativeDate(t.lastUpdated)}
+                </div>
+                <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
+                  <Archive size={14} />
+                </div>
               </div>
             </div>
           ))}
