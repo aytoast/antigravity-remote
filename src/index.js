@@ -76,7 +76,19 @@ proxy.on('proxySocket', (proxySocket) => {
     });
 });
 
+const qrcode = require('qrcode-terminal');
+
 server.listen(PROXY_PORT, () => {
     console.log(`Antigravity Remote Proxy running on port ${PROXY_PORT}`);
     console.log(`Forwarding to Engine on port ${ANTIGRAVITY_PORT}`);
+
+    // Generate Pairing QR Code for Mobile App
+    const pairingData = JSON.stringify({
+        token: 'mock-secure-pairing-token-1234',
+        relay: RELAY_WS_URL,
+        host: require('os').hostname()
+    });
+
+    console.log('\nScan this QR code with the Antigravity Mobile App to pair:');
+    qrcode.generate(pairingData, { small: true });
 });
