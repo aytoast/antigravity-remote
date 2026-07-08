@@ -16,6 +16,13 @@ router.get('/threads/recent', async (req, res) => {
     res.json({ success: true, data: threads });
 });
 
+// GET /api/threads/:id
+router.get('/threads/:id', async (req, res) => {
+    const { getThreadMessages } = require('./parser');
+    const messages = await getThreadMessages(req.params.id);
+    res.json({ success: true, data: messages });
+});
+
 // GET /api/pairing/qr
 router.get('/pairing/qr', (req, res) => {
     // In a real implementation, this generates a secure JWT or token

@@ -10,11 +10,20 @@ export default function ChatView() {
   const endRef = useRef(null);
 
   useEffect(() => {
-    // Mocking chat
-    setMessages([
-      { id: 1, role: 'user', content: 'Can you implement the proxy server logic?' },
-      { id: 2, role: 'ai', content: 'Yes, I can implement a Node.js script using `http-proxy` and `ws` libraries to build a local reverse proxy.' },
-    ]);
+    if (id === 'new') return;
+    fetch(`http://100.102.126.57:8080/api/threads/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // ensure data is clean text since content might be XML/JSON strings
+          const cleanMsgs = data.data.map(m => ({
+            ...m,
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+          }));
+          setMessages(cleanMsgs);
+        }
+      })
+      .catch(err => console.error(err));
   }, [id]);
 
   useEffect(() => {

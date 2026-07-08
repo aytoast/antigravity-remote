@@ -8,12 +8,12 @@ export default function WorkspaceDetail() {
   const [threads, setThreads] = useState([]);
 
   useEffect(() => {
-    // Mocking threads
-    setThreads([
-      { id: 't1', title: 'Implement proxy server logic', date: '2 hours ago', count: 14 },
-      { id: 't2', title: 'Setup github repository and ignore files', date: '5 hours ago', count: 8 },
-      { id: 't3', title: 'Initial project planning', date: '1 day ago', count: 32 }
-    ]);
+    fetch('http://100.102.126.57:8080/api/threads/recent')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setThreads(data.data);
+      })
+      .catch(err => console.error(err));
   }, [id]);
 
   return (

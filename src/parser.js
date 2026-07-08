@@ -96,8 +96,36 @@ async function getRecentThreads(limit = 10) {
     return threads.slice(0, limit);
 }
 
+async function getThreadMessages(conversationId) {
+    const transcriptPath = path.join(BRAIN_DIR, conversationId, '.system_generated', 'logs', 'transcript.jsonl');
+    if (!fs.existsSync(transcriptPath)) return [];
+
+    const fileStream = fs.createReadStream(transcriptPath);
+    const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+    });
+
+    const messages = [];
+    for await (const line of rl) {
+        try {
+            const data = JSON.parse(line);
+            if (data.type === 'USER_INPUT' || data.type === 'PLANNER_RESPONSE') {
+                messages.push({
+                    id: data.step_index,
+                    role: data.type === 'USER_INPUT' ? 'user' : 'ai',
+                    content: data.content,
+                    created_at: data.created_at
+                });
+            }
+        } catch (e) {}
+    }
+    return messages;
+}
+
 module.exports = {
     getWorkspaces,
     parseTranscript,
-    getRecentThreads
+    getRecentThreads,
+    getThreadMessages
 };
