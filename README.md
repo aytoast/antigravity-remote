@@ -26,16 +26,28 @@ mimics the codex remote access architecture with local-first execution, secure r
    - e2e encrypted; stores no local codebase data.
 
 3. **mobile client (pwa)**
-   - React/Next.js pwa with TailwindCSS.
+   - React/Vite pwa with premium vanilla CSS glassmorphism UI.
    - scans host qr code to pair.
    - acts as remote control and terminal viewer.
 
 ## getting started
 
-*coming soon.*
+1. **start host daemon**
+   ```bash
+   npm install
+   npm start
+   ```
+   (this will generate the pairing qr code)
+
+2. **start mobile client**
+   ```bash
+   cd client
+   npm install
+   npm run dev
+   ```
 
 ### development stack
 
-- **client**: Next.js, React, TailwindCSS
+- **client**: Vite, React, Vanilla CSS
 - **relay**: Node.js, WebSockets
-- **host**: Python/Node.js, Antigravity core integration
+- **host**: Node.js (`http-proxy`), Antigravity core integration
