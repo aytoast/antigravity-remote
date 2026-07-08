@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, MessageSquare, Plus } from 'lucide-react';
+import { ChevronLeft, MessageSquare, Plus, Pin } from 'lucide-react';
 
 export default function WorkspaceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
+  const [pinned, setPinned] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
+    } catch {
+      return [];
+    }
+  });
+
+  const togglePin = (e, threadId) => {
+    e.stopPropagation();
+    let newPinned;
+    if (pinned.includes(threadId)) {
+      newPinned = pinned.filter(id => id !== threadId);
+    } else {
+      newPinned = [...pinned, threadId];
+    }
+    setPinned(newPinned);
+    localStorage.setItem('pinnedThreads', JSON.stringify(newPinned));
+  };
 
   useEffect(() => {
     fetch('http://100.102.126.57:8080/api/threads/recent')
@@ -25,14 +44,22 @@ export default function WorkspaceDetail() {
         </div>
       </nav>
       <div className="container">
-        {threads && threads.length > 0 ? threads.map(t => (
+        {threads && threads.length > 0 ? [...threads].sort((a, b) => {
+          const aPinned = pinned.includes(a.id);
+          const bPinned = pinned.includes(b.id);
+          if (aPinned === bPinned) return 0;
+          return aPinned ? -1 : 1;
+        }).map(t => (
           <div key={t.id} className="list-item" onClick={() => navigate(`/chat/${t.id}`)}>
             <div className="list-item-icon">
               <MessageSquare size={20} />
             </div>
             <div className="list-item-content">
               <div className="list-item-title">{t.title}</div>
-              <div className="list-item-subtitle">{t.date} • {t.count} messages</div>
+              <div className="list-item-subtitle">{new Date(t.lastUpdated).toLocaleDateString()} • {t.messageCount} messages</div>
+            </div>
+            <div onClick={(e) => togglePin(e, t.id)} style={{ padding: '8px', color: pinned.includes(t.id) ? 'var(--accent-color)' : 'var(--text-secondary)' }}>
+              <Pin size={20} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
             </div>
           </div>
         )) : null}

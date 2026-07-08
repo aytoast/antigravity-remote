@@ -73,25 +73,23 @@ async function parseTranscript(conversationId) {
 /**
  * Fetches recent threads by scanning the brain directory.
  */
-async function getRecentThreads(limit = 10) {
+async function getRecentThreads(limit = 100) {
     const threads = [];
     try {
         if (!fs.existsSync(BRAIN_DIR)) return threads;
         
         const convDirs = fs.readdirSync(BRAIN_DIR, { withFileTypes: true })
-            .filter(d => d.isDirectory() && d.name.length === 36); // UUID length
+            .filter(d => d.isDirectory() && d.name.length === 36);
             
         for (const dir of convDirs) {
             const thread = await parseTranscript(dir.name);
-            if (thread) {
+            if (thread && thread.title !== 'Untitled Thread') {
                 threads.push(thread);
             }
         }
         
         threads.sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0));
-    } catch (err) {
-        console.error('Error reading recent threads:', err.message);
-    }
+    } catch (err) {}
     
     return threads.slice(0, limit);
 }

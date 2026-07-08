@@ -11,7 +11,7 @@ router.get('/workspaces', (req, res) => {
 
 // GET /api/threads/recent
 router.get('/threads/recent', async (req, res) => {
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 100;
     const threads = await getRecentThreads(limit);
     res.json({ success: true, data: threads });
 });
