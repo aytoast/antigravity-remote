@@ -11,6 +11,15 @@ const RELAY_WS_URL = process.env.RELAY_WS_URL || 'wss://relay.antigravity.dev';
 const app = express();
 const server = http.createServer(app);
 
+// API Middleware
+const cors = require('cors');
+app.use(cors());
+app.use(express.json());
+
+// API Routes
+const apiRouter = require('./api');
+app.use('/api', apiRouter);
+
 // Initialize Proxy
 const proxy = httpProxy.createProxyServer({
     target: `http://127.0.0.1:${ANTIGRAVITY_PORT}`,
