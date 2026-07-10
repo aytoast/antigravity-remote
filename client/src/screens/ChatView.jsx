@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Send } from 'lucide-react';
+import { apiUrl } from '../api';
 
 export default function ChatView() {
   const { id } = useParams();
@@ -11,7 +12,7 @@ export default function ChatView() {
 
   useEffect(() => {
     if (id === 'new') return;
-    fetch(`http://100.102.126.57:8080/api/threads/${id}`)
+    fetch(apiUrl(`/api/threads/${id}`))
       .then(res => res.json())
       .then(data => {
         if (data.success) {

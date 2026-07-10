@@ -1,5 +1,6 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads } = require('./parser');
+const { getPinnedThreads, setPinnedThreads } = require('./pins');
 
 const router = express.Router();
 
@@ -9,11 +10,38 @@ router.get('/workspaces', (req, res) => {
     res.json({ success: true, data: workspaces });
 });
 
+router.get('/pinned-threads', (req, res) => {
+    res.json({ success: true, data: getPinnedThreads() });
+});
+
+router.put('/pinned-threads', (req, res) => {
+    if (!Array.isArray(req.body?.threadIds)) {
+        return res.status(400).json({ success: false, error: 'threadIds must be an array' });
+    }
+    res.json({ success: true, data: setPinnedThreads(req.body.threadIds) });
+});
+
 // GET /api/threads/recent
 router.get('/threads/recent', async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const threads = await getRecentThreads(limit);
     res.json({ success: true, data: threads });
+});
+
+// GET /api/workspaces/:id/threads — threads scoped to a single workspace
+router.get('/workspaces/:id/threads', async (req, res) => {
+    const workspaces = getWorkspaces();
+    const workspace = workspaces.find(w => w.id === req.params.id);
+    if (!workspace) return res.json({ success: true, data: [] });
+    const { getRecentThreads } = require('./parser');
+    const all = await getRecentThreads(500);
+    const wPath = workspace.path.toLowerCase().replace(/\\/g, '/');
+    const scoped = all.filter(t => {
+        if (!t.workspacePath) return false;
+        const tp = t.workspacePath.toLowerCase().replace(/\\/g, '/');
+        return tp === wPath || tp.startsWith(wPath + '/');
+    });
+    res.json({ success: true, data: scoped });
 });
 
 // GET /api/threads/:id

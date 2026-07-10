@@ -5,7 +5,7 @@ const WebSocket = require('ws');
 const http = require('http');
 
 const ANTIGRAVITY_PORT = process.env.ANTIGRAVITY_PORT || 3000;
-const PROXY_PORT = process.env.PROXY_PORT || 8080;
+const PROXY_PORT = process.env.PROXY_PORT || 8787;
 const RELAY_WS_URL = process.env.RELAY_WS_URL || 'wss://relay.antigravity.dev';
 
 const app = express();

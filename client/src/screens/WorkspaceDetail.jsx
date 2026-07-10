@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, MessageSquare, Plus, Pin } from 'lucide-react';
+import { apiUrl } from '../api';
 
 export default function WorkspaceDetail() {
   const { id } = useParams();
@@ -14,6 +15,25 @@ export default function WorkspaceDetail() {
     }
   });
 
+  useEffect(() => {
+    fetch(apiUrl('/api/pinned-threads'))
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
+        if (data.data.length || localPinned.length === 0) {
+          setPinned(data.data);
+          return;
+        }
+        fetch(apiUrl('/api/pinned-threads'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threadIds: localPinned })
+        }).catch(err => console.error(err));
+      })
+      .catch(err => console.error(err));
+  }, []);
+
   const togglePin = (e, threadId) => {
     e.stopPropagation();
     let newPinned;
@@ -24,10 +44,15 @@ export default function WorkspaceDetail() {
     }
     setPinned(newPinned);
     localStorage.setItem('pinnedThreads', JSON.stringify(newPinned));
+    fetch(apiUrl('/api/pinned-threads'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadIds: newPinned })
+    }).catch(err => console.error(err));
   };
 
   useEffect(() => {
-    fetch('http://100.102.126.57:8080/api/threads/recent')
+    fetch(apiUrl(`/api/workspaces/${id}/threads`))
       .then(res => res.json())
       .then(data => {
         if (data.success) setThreads(data.data);

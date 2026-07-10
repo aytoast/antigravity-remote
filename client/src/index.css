@@ -144,6 +144,23 @@ body {
   gap: 12px;
 }
 
+.thread-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.thread-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Floating Action Button */
 .fab {
   position: fixed;
