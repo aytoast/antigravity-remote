@@ -145,14 +145,17 @@ async function listModels(cascadeId) {
         }
         if (!target) throw new Error('Antigravity model selector is unavailable');
     }
-    const result = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return {models:[],selected:''}; const selected=button.innerText.trim(); button.click(); return new Promise(resolve=>setTimeout(()=>resolve({selected,models:[...document.querySelectorAll('[role="menuitem"],button')].map(item=>item.innerText.trim()).filter(Boolean)}),150))})()`);
-    const models = [...new Set((result?.models || []).filter(model => /\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\b/i.test(model)))];
-    return { models, selected: models.includes(result?.selected) ? result.selected : (models[0] || '') };
+    const result = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return {models:[],selected:''}; const visible=element=>element && element.getBoundingClientRect().width>0 && element.getBoundingClientRect().height>0; const collect=()=>[...document.querySelectorAll('button,[role="menuitem"],[role="option"]')].filter(visible).map(item=>item.innerText.trim()).filter(Boolean); const modelText=/\\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\\b/i; const isModel=model=>modelText.test(model)&&!/(?:python|node|powershell|\\.exe)\\b/i.test(model); const selected=button.innerText.trim(); let models=collect().filter(isModel); if(models.length<2) button.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{models=collect().filter(isModel); if(models.length>1||performance.now()-started>500) return resolve({selected,models}); setTimeout(check,16)}; check()})})()`);
+    const models = [...new Set((result?.models || [])
+        .map(model => model.replace(/\s+/g, ' ').trim())
+        .filter(model => /\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\b/i.test(model) && !/(?:python|node|powershell|\.exe)\b/i.test(model)))];
+    const selected = result?.selected?.replace(/\s+/g, ' ').trim();
+    return { models, selected: models.includes(selected) ? selected : (models[0] || '') };
 }
 
 async function selectModel(cascadeId, model) {
     const target = await findTarget(cascadeId);
-    const selected = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return false; button.click(); return new Promise(resolve=>setTimeout(()=>{const option=[...document.querySelectorAll('[role="menuitem"],button')].find(item=>item.innerText.trim()===${JSON.stringify(model)}); if(!option) return resolve(false); option.click(); resolve(true)},150))})()`);
+    const selected = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return false; const visible=element=>element && element.getBoundingClientRect().width>0 && element.getBoundingClientRect().height>0; const findOption=()=>[...document.querySelectorAll('button,[role="menuitem"],[role="option"]')].filter(visible).find(item=>item.innerText.trim()===${JSON.stringify(model)}); if(!findOption()) button.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=findOption(); if(option){option.click(); return resolve(true)} if(performance.now()-started>500) return resolve(false); setTimeout(check,16)}; check()})})()`);
     if (!selected) throw new Error('Requested model is unavailable');
     return { selected: model };
 }
