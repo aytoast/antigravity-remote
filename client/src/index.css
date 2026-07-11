@@ -81,6 +81,79 @@ body {
   text-transform: capitalize;
 }
 
+.project-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.display-options-control {
+  position: relative;
+}
+
+.sidebar-icon-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.sidebar-icon-button:hover,
+.sidebar-icon-button[aria-expanded="true"] {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.display-options-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  width: 178px;
+  padding: 6px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--surface-color);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.display-options-menu span {
+  display: block;
+  padding: 5px 10px 3px;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.display-options-menu button {
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.display-options-menu button:hover,
+.display-options-menu button.is-selected {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.desktop-notice {
+  padding: 4px 20px 8px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
 /* Container */
 .container {
   padding: 12px 20px;

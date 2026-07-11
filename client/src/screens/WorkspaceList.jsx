@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Folder, Filter, FolderPlus, Pin } from 'lucide-react';
+import { CalendarClock, Folder, Filter, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
 import { HomeSkeleton } from '../components/LoadingSkeleton';
 
@@ -32,6 +32,9 @@ export default function WorkspaceList() {
   });
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
+  const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
+  const [displaySelection, setDisplaySelection] = useState(['Project', 'Last Updated', 'No Subtitle']);
+  const [desktopNotice, setDesktopNotice] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -55,6 +58,13 @@ export default function WorkspaceList() {
         }
       }
     }).catch(err => console.error(err)).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch(apiUrl('/api/desktop/sidebar-options'))
+      .then(res => res.json())
+      .then(data => { if (data.success) setDisplaySelection(data.data.selected); })
+      .catch(() => {});
   }, []);
 
   // Match thread to workspace using the workspacePath field the backend provides
@@ -85,13 +95,15 @@ export default function WorkspaceList() {
     }
   });
 
-  Object.values(projectsMap).forEach(projectThreads => {
-    projectThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
-  });
-  looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
+  const sortThreads = (a, b) => displaySelection.includes('Alphabetical (A-Z)')
+    ? a.title.localeCompare(b.title)
+    : new Date(b.lastUpdated) - new Date(a.lastUpdated);
+  Object.values(projectsMap).forEach(projectThreads => projectThreads.sort(sortThreads));
+  looseThreads.sort(sortThreads);
   const orderedWorkspaces = [...workspaces].sort((a, b) => {
     const aUpdated = projectsMap[a.name]?.[0]?.lastUpdated;
     const bUpdated = projectsMap[b.name]?.[0]?.lastUpdated;
+    if (displaySelection.includes('Alphabetical (A-Z)')) return a.name.localeCompare(b.name);
     if (!aUpdated && !bUpdated) return a.name.localeCompare(b.name);
     if (!aUpdated) return 1;
     if (!bUpdated) return -1;
@@ -124,6 +136,37 @@ export default function WorkspaceList() {
     }).catch(err => console.error(err));
   };
 
+  const setDesktopDisplayOption = async (option) => {
+    try {
+      const response = await fetch(apiUrl('/api/desktop/sidebar-options'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ option })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop display option failed');
+      setDisplaySelection(data.data.selected);
+      setDisplayOptionsOpen(false);
+      setDesktopNotice('Desktop display updated');
+    } catch (error) {
+      setDesktopNotice(error.message);
+    }
+  };
+
+  const openScheduledTasks = async () => {
+    try {
+      const response = await fetch(apiUrl('/api/desktop/scheduled-tasks/open'), { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Scheduled Tasks failed to open');
+      setDesktopNotice('Scheduled Tasks opened on desktop');
+    } catch (error) {
+      setDesktopNotice(error.message);
+    }
+  };
+
+  const flatDisplay = displaySelection.includes('None');
+  const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
+
   return (
     <div className="animate-fade-in">
       <div className="container" style={{ paddingTop: '20px' }}>
@@ -153,12 +196,27 @@ export default function WorkspaceList() {
         <div className="section">
           <div className="section-header">
             <span>Projects</span>
-            <div style={{ display: 'flex', gap: '16px' }}>
-              <Filter size={16} />
-              <FolderPlus size={16} />
+            <div className="project-actions">
+              <div className="display-options-control">
+                <button className="sidebar-icon-button" type="button" onClick={() => setDisplayOptionsOpen(open => !open)} aria-label="Display options" aria-expanded={displayOptionsOpen}>
+                  <Filter size={16} />
+                </button>
+                {displayOptionsOpen && <div className="display-options-menu">
+                  <span>Group By</span>
+                  <button type="button" className={displaySelection.includes('Project') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Project')}>Project</button>
+                  <button type="button" className={displaySelection.includes('None') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('None')}>None</button>
+                  <span>Sort Conversations</span>
+                  <button type="button" className={displaySelection.includes('Last Updated') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Last Updated')}>Last Updated</button>
+                  <button type="button" className={displaySelection.includes('Alphabetical (A-Z)') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Alphabetical (A-Z)')}>Alphabetical (A-Z)</button>
+                </div>}
+              </div>
+              <button className="sidebar-icon-button" type="button" onClick={openScheduledTasks} aria-label="Open scheduled tasks" title="Open Scheduled Tasks on desktop">
+                <CalendarClock size={16} />
+              </button>
             </div>
           </div>
-          {orderedWorkspaces.map(ws => (
+          {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
+          {!flatDisplay && orderedWorkspaces.map(ws => (
             <div key={ws.id} style={{ marginBottom: '16px' }}>
               <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
                 <div className="list-item-icon">
@@ -187,10 +245,16 @@ export default function WorkspaceList() {
               </div>
             </div>
           ))}
+          {flatDisplay && flatThreads.map(t => (
+            <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
+              <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
+              <div className="list-item-right"><div>{formatRelativeDate(t.lastUpdated)}</div></div>
+            </div>
+          ))}
         </div>
 
         {/* Loose Conversations Section */}
-        <div className="section">
+        {!flatDisplay && <div className="section">
           <div className="section-header">Conversations</div>
           {looseThreads.map(t => (
             <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
@@ -205,7 +269,7 @@ export default function WorkspaceList() {
               </div>
             </div>
           ))}
-        </div>
+        </div>}
 
         </>}
       </div>

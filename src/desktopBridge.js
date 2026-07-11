@@ -63,6 +63,15 @@ async function findTarget(cascadeId) {
     return target;
 }
 
+async function findSidebarTarget() {
+    const targets = await listTargets();
+    for (const target of targets) {
+        const hasSidebar = await evaluate(target, `Boolean(document.querySelector('[aria-label="Display Options"]'))`);
+        if (hasSidebar) return target;
+    }
+    throw new Error('Antigravity sidebar is not open on desktop');
+}
+
 function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -135,4 +144,54 @@ async function selectModel(cascadeId, model) {
     return { selected: model };
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel };
+const sidebarMenuExpression = (action) => `(()=>{
+    const display=document.querySelector('[aria-label="Display Options"]');
+    if(!display) return Promise.resolve({error:'Display options are unavailable'});
+    const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    const buttons=()=>[...document.querySelectorAll('button')];
+    const find=name=>buttons().find(button=>button.innerText.trim()===name);
+    const state=()=>buttons().filter(button=>button.className.includes('bg-secondary')&&button.className.includes('font-medium')).map(button=>button.innerText.trim());
+    return (async()=>{
+        let opened=false;
+        if(!find('Project')) { display.click(); opened=true; await wait(80); }
+        if(${JSON.stringify(action)}) {
+            const option=find(${JSON.stringify(action)});
+            if(!option) return {error:'Requested display option is unavailable'};
+            option.click();
+            await wait(80);
+            if(!find('Project')) { display.click(); await wait(80); }
+            const selected=state();
+            if(find('Project')) display.click();
+            return {selected};
+        }
+        const selected=state();
+        if(opened) display.click();
+        return {selected};
+    })();
+})()`;
+
+async function getSidebarOptions() {
+    const target = await findSidebarTarget();
+    const result = await evaluate(target, sidebarMenuExpression(null));
+    if (result?.error) throw new Error(result.error);
+    return { selected: result?.selected || [] };
+}
+
+async function setSidebarOption(option) {
+    const allowed = new Set(['Project', 'None', 'Last Updated', 'Alphabetical (A-Z)']);
+    if (!allowed.has(option)) throw new Error('Requested display option is unsupported on mobile');
+    const target = await findSidebarTarget();
+    const result = await evaluate(target, sidebarMenuExpression(option));
+    if (result?.error) throw new Error(result.error);
+    if (!result?.selected?.includes(option)) throw new Error('Desktop did not apply display option');
+    return { selected: result.selected };
+}
+
+async function openScheduledTasks() {
+    const target = await findSidebarTarget();
+    const opened = await evaluate(target, `(()=>{const button=[...document.querySelectorAll('button')].find(item=>item.innerText.trim()==='Scheduled Tasks'); if(!button) return false; button.click(); return true})()`);
+    if (!opened) throw new Error('Scheduled Tasks is unavailable on desktop');
+    return { opened: true };
+}
+
+module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks };

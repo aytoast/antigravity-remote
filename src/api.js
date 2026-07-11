@@ -27,6 +27,22 @@ router.get('/desktop/status', async (req, res) => {
     res.json({ success: true, connected: targets.length > 0, targets: targets.map(target => ({ title: target.title, url: target.url })) });
 });
 
+router.get('/desktop/sidebar-options', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.getSidebarOptions() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.put('/desktop/sidebar-options', async (req, res) => {
+    if (typeof req.body?.option !== 'string') return res.status(400).json({ success: false, error: 'option is required' });
+    try { res.json({ success: true, data: await desktopBridge.setSidebarOption(req.body.option) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/desktop/scheduled-tasks/open', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.openScheduledTasks() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/desktop/:id/models', async (req, res) => {
     try { res.json({ success: true, data: await desktopBridge.listModels(req.params.id) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
