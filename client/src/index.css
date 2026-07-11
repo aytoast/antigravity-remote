@@ -154,6 +154,102 @@ body {
   font-size: 0.75rem;
 }
 
+.back-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-right: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.back-button:hover { background: var(--surface-hover); }
+
+.tasks-page .navbar { justify-content: flex-start; }
+
+.tasks-content {
+  width: min(100%, 640px);
+  margin: 0 auto;
+  padding: 16px 20px;
+}
+
+.task-search {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.task-search input::placeholder { color: var(--text-secondary); }
+
+.tasks-list { margin-top: 14px; }
+
+.task-row {
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-row:hover { background: var(--surface-hover); }
+
+.task-copy { min-width: 0; }
+.task-copy > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+.task-copy small { color: var(--text-secondary); font-size: 0.75rem; }
+
+.task-toggle {
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+
+.task-toggle span {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  display: block;
+  transform: translateX(0);
+  transition: transform 0.18s ease;
+}
+
+.task-toggle.is-enabled { background: var(--accent-color); }
+.task-toggle.is-enabled span { transform: translateX(18px); }
+
+.tasks-error { margin-top: 12px; color: #f28b82; font-size: 0.82rem; }
+
+.tasks-skeleton { display: grid; gap: 12px; margin-top: 16px; }
+.tasks-skeleton span { height: 52px; border-radius: 8px; background: var(--surface-color); animation: skeletonPulse 1.2s ease-in-out infinite alternate; }
+
 /* Container */
 .container {
   padding: 12px 20px;

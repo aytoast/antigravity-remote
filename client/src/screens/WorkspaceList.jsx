@@ -153,17 +153,6 @@ export default function WorkspaceList() {
     }
   };
 
-  const openScheduledTasks = async () => {
-    try {
-      const response = await fetch(apiUrl('/api/desktop/scheduled-tasks/open'), { method: 'POST' });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Scheduled Tasks failed to open');
-      setDesktopNotice('Scheduled Tasks opened on desktop');
-    } catch (error) {
-      setDesktopNotice(error.message);
-    }
-  };
-
   const flatDisplay = displaySelection.includes('None');
   const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
 
@@ -210,7 +199,7 @@ export default function WorkspaceList() {
                   <button type="button" className={displaySelection.includes('Alphabetical (A-Z)') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Alphabetical (A-Z)')}>Alphabetical (A-Z)</button>
                 </div>}
               </div>
-              <button className="sidebar-icon-button" type="button" onClick={openScheduledTasks} aria-label="Open scheduled tasks" title="Open Scheduled Tasks on desktop">
+              <button className="sidebar-icon-button" type="button" onClick={() => navigate('/tasks')} aria-label="Open scheduled tasks" title="Scheduled Tasks">
                 <CalendarClock size={16} />
               </button>
             </div>

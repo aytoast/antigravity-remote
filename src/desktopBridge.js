@@ -189,9 +189,56 @@ async function setSidebarOption(option) {
 
 async function openScheduledTasks() {
     const target = await findSidebarTarget();
-    const opened = await evaluate(target, `(()=>{const button=[...document.querySelectorAll('button')].find(item=>item.innerText.trim()==='Scheduled Tasks'); if(!button) return false; button.click(); return true})()`);
+    const opened = await evaluate(target, `(()=>{const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks'); if(!control) return false; control.click(); return true})()`);
     if (!opened) throw new Error('Scheduled Tasks is unavailable on desktop');
     return { opened: true };
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks };
+const scheduledTasksExpression = (name, enabled) => `(()=>{
+    const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    const openTasks=()=>{
+        const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks');
+        if(!control) return false;
+        if(![...document.querySelectorAll('[role="switch"]')].length) control.click();
+        return true;
+    };
+    const tasks=()=>[...document.querySelectorAll('[role="switch"]')].map(toggle=>{
+        const card=toggle.parentElement?.parentElement;
+        const lines=(card?.innerText||'').split('\\n').map(line=>line.trim()).filter(Boolean);
+        return {name:lines[0]||'', schedule:lines[1]||'', enabled:toggle.getAttribute('aria-checked')==='true'};
+    }).filter(task=>task.name);
+    return (async()=>{
+        if(!openTasks()) return {error:'Scheduled Tasks is unavailable'};
+        await wait(100);
+        if(${JSON.stringify(name)}) {
+            const toggles=[...document.querySelectorAll('[role="switch"]')];
+            const toggle=toggles.find(item=>{
+                const card=item.parentElement?.parentElement;
+                return card?.innerText.split('\\n').map(line=>line.trim()).filter(Boolean)[0]===${JSON.stringify(name)};
+            });
+            if(!toggle) return {error:'Scheduled task is unavailable'};
+            const current=toggle.getAttribute('aria-checked')==='true';
+            if(current!==${JSON.stringify(enabled)}) toggle.click();
+            await wait(100);
+        }
+        return {tasks:tasks()};
+    })();
+})()`;
+
+async function listScheduledTasks() {
+    const target = await findSidebarTarget();
+    const result = await evaluate(target, scheduledTasksExpression(null, null));
+    if (result?.error) throw new Error(result.error);
+    return result?.tasks || [];
+}
+
+async function setScheduledTaskEnabled(name, enabled) {
+    const target = await findSidebarTarget();
+    const result = await evaluate(target, scheduledTasksExpression(name, enabled));
+    if (result?.error) throw new Error(result.error);
+    const task = result?.tasks?.find(item => item.name === name);
+    if (!task || task.enabled !== enabled) throw new Error('Desktop did not update scheduled task');
+    return result.tasks;
+}
+
+module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled };
