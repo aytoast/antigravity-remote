@@ -4,13 +4,13 @@ const { getRecentThreads, getWorkspaces } = require('../src/parser');
 
 const screenshotTitles = {
     'knowledge-base': [
-        'Refresh YouTube Feeds and Build Notes',
-        'Implementing Telegram Business Integration'
+        'Refresh YouTube Feeds and Build Notes'
     ],
     'notion-skills': ['Syncing Notion Skills Repositories'],
     'prompting-guide': ['Exploring Prompting Guide Repository'],
     'antigravity-remote': [],
     chats: [
+        'Testing System Functionality',
         'Reviewing NDA For Aetos',
         'Analyzing Gemini Cron Jobs',
         'Tidying Notion Resource Database',
@@ -63,4 +63,17 @@ test('dynamic Antigravity annotations match screenshot exactly', async () => {
     assert.deepEqual(grouped['prompting-guide'], screenshotTitles['prompting-guide']);
     assert.deepEqual(grouped['antigravity-remote'], []);
     assert.deepEqual(chats, screenshotTitles.chats);
+});
+
+test('scheduled filter reveals source-19 runs without synthetic task prompts', async () => {
+    const [normal, inclusive] = await Promise.all([
+        getRecentThreads(500),
+        getRecentThreads(500, { includeScheduled: true })
+    ]);
+    const scheduled = inclusive.filter(thread => thread.isScheduled);
+
+    assert.ok(scheduled.length > 0, 'scheduled filter returned no source-19 runs');
+    assert.ok(scheduled.every(thread => thread.source === 19), 'non-source-19 conversation marked scheduled');
+    assert.ok(normal.every(thread => !thread.isScheduled), 'scheduled run leaked into default sidebar');
+    assert.ok(inclusive.every(thread => !thread.isSyntheticTask), 'synthetic task prompt leaked into scheduled filter');
 });

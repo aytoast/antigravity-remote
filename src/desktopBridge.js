@@ -193,12 +193,12 @@ async function getSidebarOptions() {
 }
 
 async function setSidebarOption(option) {
-    const allowed = new Set(['Project', 'None', 'Last Updated', 'Alphabetical (A-Z)']);
+    const allowed = new Set(['Project', 'None', 'Last Updated', 'Alphabetical (A-Z)', 'Scheduled']);
     if (!allowed.has(option)) throw new Error('Requested display option is unsupported on mobile');
     const target = await findSidebarTarget();
     const result = await evaluate(target, sidebarMenuExpression(option));
     if (result?.error) throw new Error(result.error);
-    if (!result?.selected?.includes(option)) throw new Error('Desktop did not apply display option');
+    if (option !== 'Scheduled' && !result?.selected?.includes(option)) throw new Error('Desktop did not apply display option');
     return { selected: result.selected };
 }
 

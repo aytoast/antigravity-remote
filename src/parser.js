@@ -191,7 +191,8 @@ async function parseTranscript(conversationId) {
 
     const { workspacePath, source } = getConversationMeta(conversationId);
     const summary = getSummaryMetadata().get(conversationId);
-    const isScheduled = /^(?:\/schedule\b|your task is\b|(?:create|set up|schedule|run)\s+(?:a\s+)?(?:cron|scheduled task)\b)/i.test(firstUserRequest);
+    const isScheduled = source === 19;
+    const isSyntheticTask = /^(?:\/schedule\b|your task is\b|(?:create|set up|schedule|run)\s+(?:a\s+)?(?:cron|scheduled task)\b)/i.test(firstUserRequest);
 
     return {
         id: conversationId,
@@ -199,6 +200,7 @@ async function parseTranscript(conversationId) {
         workspacePath,
         source,
         isScheduled,
+        isSyntheticTask,
         isArchived: summary?.archived || false,
         isPinned: summary?.pinned || false,
         lastUpdated: messages.length > 0 ? messages[messages.length - 1].created_at : null,
@@ -209,7 +211,7 @@ async function parseTranscript(conversationId) {
 /**
  * Fetches recent threads by scanning the brain directory.
  */
-async function getRecentThreads(limit = 100) {
+async function getRecentThreads(limit = 100, { includeScheduled = false } = {}) {
     const threads = [];
     try {
         if (!fs.existsSync(BRAIN_DIR)) return threads;
@@ -229,7 +231,7 @@ async function getRecentThreads(limit = 100) {
 
             if (!isArchived) {
                 const thread = await parseTranscript(dir.name);
-                if (thread && thread.title !== 'Untitled Thread' && thread.source !== 19 && !thread.isScheduled && !thread.isArchived) {
+                if (thread && thread.title !== 'Untitled Thread' && !thread.isSyntheticTask && (includeScheduled || !thread.isScheduled) && !thread.isArchived) {
                     threads.push(thread);
                 }
             }

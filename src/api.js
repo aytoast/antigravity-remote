@@ -101,7 +101,7 @@ router.post('/desktop/:id/prompt', async (req, res) => {
 // GET /api/threads/recent
 router.get('/threads/recent', async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
-    const threads = await getRecentThreads(limit);
+    const threads = await getRecentThreads(limit, { includeScheduled: req.query.includeScheduled === 'true' });
     res.json({ success: true, data: threads });
 });
 
@@ -125,7 +125,7 @@ router.get('/workspaces/:id/threads', async (req, res) => {
 router.get('/threads/:id', async (req, res) => {
     const { getThreadMessages } = require('./parser');
     const messages = await getThreadMessages(req.params.id);
-    const threads = await getRecentThreads(500);
+    const threads = await getRecentThreads(500, { includeScheduled: true });
     const thread = threads.find(item => item.id === req.params.id) || null;
     res.json({ success: true, data: messages, thread });
 });

@@ -154,6 +154,14 @@ body {
   font-size: 0.75rem;
 }
 
+.thread-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
 .back-button {
   width: 28px;
   height: 28px;

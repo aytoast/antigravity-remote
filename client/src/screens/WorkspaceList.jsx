@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, Folder, Filter, Pin } from 'lucide-react';
+import { CalendarClock, Clock3, Folder, Filter, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
 import { HomeSkeleton } from '../components/LoadingSkeleton';
 
@@ -12,6 +12,11 @@ const formatRelativeDate = (dateString) => {
   if (diffHrs < 24) return `${diffHrs}h`;
   return `${Math.floor(diffHrs / 24)}d`;
 };
+
+const ThreadTime = ({ thread }) => <div className="thread-time">
+  {thread.isScheduled && <Clock3 size={12} aria-label="Scheduled conversation" />}
+  <span>{formatRelativeDate(thread.lastUpdated)}</span>
+</div>;
 
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
@@ -34,7 +39,7 @@ export default function WorkspaceList() {
   useEffect(() => {
     Promise.all([
       fetch(apiUrl('/api/workspaces')).then(res => res.json()),
-      fetch(apiUrl('/api/threads/recent?limit=500')).then(res => res.json()),
+      fetch(apiUrl('/api/threads/recent?limit=500&includeScheduled=true')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
@@ -61,7 +66,7 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads.filter(thread => !archived.includes(thread.id));
+  const activeThreads = threads.filter(thread => !archived.includes(thread.id) && (displaySelection.includes('Scheduled') || !thread.isScheduled));
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
@@ -163,7 +168,7 @@ export default function WorkspaceList() {
                   <div className="list-item-subtitle">{getWorkspaceForThread(t) || 'global'}</div>
                 </div>
                 <div className="list-item-right">
-                  <div>{formatRelativeDate(t.lastUpdated)}</div>
+                  <ThreadTime thread={t} />
                   <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
                   </button>
@@ -189,6 +194,8 @@ export default function WorkspaceList() {
                   <span>Sort Conversations</span>
                   <button type="button" className={displaySelection.includes('Last Updated') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Last Updated')}>Last Updated</button>
                   <button type="button" className={displaySelection.includes('Alphabetical (A-Z)') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Alphabetical (A-Z)')}>Alphabetical (A-Z)</button>
+                  <span>Filter</span>
+                  <button type="button" className={displaySelection.includes('Scheduled') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Scheduled')}>Scheduled</button>
                 </div>}
               </div>
               <button className="sidebar-icon-button" type="button" onClick={() => navigate('/tasks')} aria-label="Open scheduled tasks" title="Scheduled Tasks">
@@ -215,7 +222,7 @@ export default function WorkspaceList() {
                         <div className="list-item-title">{t.title}</div>
                       </div>
                       <div className="list-item-right">
-                        <div>{formatRelativeDate(t.lastUpdated)}</div>
+                        <ThreadTime thread={t} />
                         <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                           <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
                         </button>
@@ -229,7 +236,7 @@ export default function WorkspaceList() {
           {flatDisplay && flatThreads.map(t => (
             <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
               <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
-              <div className="list-item-right"><div>{formatRelativeDate(t.lastUpdated)}</div></div>
+              <div className="list-item-right"><ThreadTime thread={t} /></div>
             </div>
           ))}
         </div>
@@ -243,7 +250,7 @@ export default function WorkspaceList() {
                 <div className="list-item-title">{t.title}</div>
               </div>
               <div className="list-item-right">
-                <div>{formatRelativeDate(t.lastUpdated)}</div>
+                <ThreadTime thread={t} />
                 <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                   <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
                 </button>
