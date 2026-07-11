@@ -15,7 +15,6 @@ const formatRelativeDate = (dateString) => {
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
-  const [workspaceOrder, setWorkspaceOrder] = useState([]);
   const [pinned, setPinned] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
@@ -29,15 +28,12 @@ export default function WorkspaceList() {
   useEffect(() => {
     Promise.all([
       fetch(apiUrl('/api/workspaces')).then(res => res.json()),
-      fetch(apiUrl('/api/sidebar-threads')).then(res => res.json()),
+      fetch(apiUrl('/api/threads/recent?limit=500')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
-      if (threadData.success) {
-        setThreads(threadData.data.threads);
-        setWorkspaceOrder(threadData.data.workspaceOrder);
-        localStorage.removeItem('archivedThreads');
-      }
+      if (threadData.success) setThreads(threadData.data);
+      localStorage.removeItem('archivedThreads');
       if (pinData.success) {
         const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
         if (pinData.data.length || localPinned.length === 0) {
@@ -76,7 +72,7 @@ export default function WorkspaceList() {
     const wsName = getWorkspaceForThread(t);
     if (wsName && projectsMap[wsName] !== undefined) {
       projectsMap[wsName].push(t);
-    } else if (!pinned.includes(t.id)) {
+    } else if (!t.workspacePath && !pinned.includes(t.id)) {
       looseThreads.push(t);
     }
   });
@@ -85,6 +81,14 @@ export default function WorkspaceList() {
     projectThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   });
   looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
+  const orderedWorkspaces = [...workspaces].sort((a, b) => {
+    const aUpdated = projectsMap[a.name]?.[0]?.lastUpdated;
+    const bUpdated = projectsMap[b.name]?.[0]?.lastUpdated;
+    if (!aUpdated && !bUpdated) return a.name.localeCompare(b.name);
+    if (!aUpdated) return 1;
+    if (!bUpdated) return -1;
+    return new Date(bUpdated) - new Date(aUpdated);
+  });
 
   const handleThreadClick = (id) => navigate(`/chat/${id}`);
 
@@ -146,7 +150,7 @@ export default function WorkspaceList() {
               <FolderPlus size={16} />
             </div>
           </div>
-          {[...workspaces].sort((a, b) => workspaceOrder.indexOf(a.name) - workspaceOrder.indexOf(b.name)).map(ws => (
+          {orderedWorkspaces.map(ws => (
             <div key={ws.id} style={{ marginBottom: '16px' }}>
               <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
                 <div className="list-item-icon">

@@ -1,7 +1,6 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads } = require('./parser');
 const { getPinnedThreads, setPinnedThreads } = require('./pins');
-const { getSidebarThreads } = require('./sidebar');
 
 const router = express.Router();
 
@@ -27,10 +26,6 @@ router.get('/threads/recent', async (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
     const threads = await getRecentThreads(limit);
     res.json({ success: true, data: threads });
-});
-
-router.get('/sidebar-threads', async (req, res) => {
-    res.json({ success: true, data: await getSidebarThreads() });
 });
 
 // GET /api/workspaces/:id/threads — threads scoped to a single workspace

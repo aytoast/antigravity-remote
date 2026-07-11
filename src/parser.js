@@ -8,21 +8,76 @@ const BRAIN_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.gemin
 const CONV_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'antigravity', 'conversations');
 const DOCS_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'Documents');
 const SUMMARY_PROTO_PATH = path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'antigravity', 'agyhub_summaries_proto.pb');
-let canonicalTitles;
+let summaryCache = { mtimeMs: -1, data: new Map() };
 
-function getCanonicalTitles() {
-    if (canonicalTitles) return canonicalTitles;
-    canonicalTitles = new Map();
-    if (!fs.existsSync(SUMMARY_PROTO_PATH)) return canonicalTitles;
-    const text = fs.readFileSync(SUMMARY_PROTO_PATH).toString('latin1');
-    const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-    for (const match of text.matchAll(uuidPattern)) {
-        const window = text.slice(Math.max(0, match.index - 220), match.index);
-        const titleMatches = [...window.matchAll(/([\x20-\x7e]{3,120})\x10/g)];
-        const title = titleMatches.at(-1)?.[1]?.trim().replace(/^[^\p{L}\p{N}]+/u, '');
-        if (title) canonicalTitles.set(match[0].toLowerCase(), title);
+function readVarint(buffer, offset) {
+    let value = 0;
+    let shift = 0;
+    let cursor = offset;
+    while (cursor < buffer.length) {
+        const byte = buffer[cursor++];
+        value += (byte & 0x7f) * (2 ** shift);
+        if ((byte & 0x80) === 0) return [value, cursor];
+        shift += 7;
     }
-    return canonicalTitles;
+    throw new Error('Unexpected end of protobuf varint');
+}
+
+function readProtoFields(buffer) {
+    const fields = [];
+    let offset = 0;
+    while (offset < buffer.length) {
+        let tag;
+        [tag, offset] = readVarint(buffer, offset);
+        const field = tag >> 3;
+        const wireType = tag & 7;
+        let value;
+        if (wireType === 0) {
+            [value, offset] = readVarint(buffer, offset);
+        } else if (wireType === 2) {
+            let length;
+            [length, offset] = readVarint(buffer, offset);
+            value = buffer.subarray(offset, offset + length);
+            offset += length;
+        } else if (wireType === 1) {
+            value = buffer.subarray(offset, offset + 8);
+            offset += 8;
+        } else if (wireType === 5) {
+            value = buffer.subarray(offset, offset + 4);
+            offset += 4;
+        } else {
+            throw new Error(`Unsupported protobuf wire type ${wireType}`);
+        }
+        fields.push({ field, wireType, value });
+    }
+    return fields;
+}
+
+function getSummaryMetadata() {
+    if (!fs.existsSync(SUMMARY_PROTO_PATH)) return new Map();
+    const mtimeMs = fs.statSync(SUMMARY_PROTO_PATH).mtimeMs;
+    if (summaryCache.mtimeMs === mtimeMs) return summaryCache.data;
+
+    const summaries = new Map();
+    const rootFields = readProtoFields(fs.readFileSync(SUMMARY_PROTO_PATH));
+    for (const entryField of rootFields.filter(item => item.field === 1 && item.wireType === 2)) {
+        const entry = readProtoFields(entryField.value);
+        const cascadeId = entry.find(item => item.field === 1)?.value?.toString();
+        const summaryBuffer = entry.find(item => item.field === 2)?.value;
+        if (!cascadeId || !summaryBuffer) continue;
+
+        const summary = readProtoFields(summaryBuffer);
+        const title = summary.find(item => item.field === 1)?.value?.toString().trim();
+        const trajectoryId = summary.find(item => item.field === 4)?.value?.toString();
+        const annotationsBuffer = summary.find(item => item.field === 15)?.value;
+        const annotations = annotationsBuffer ? readProtoFields(annotationsBuffer) : [];
+        const archived = annotations.find(item => item.field === 4)?.value === 1;
+        const pinned = annotations.find(item => item.field === 12)?.value === 1;
+        summaries.set(cascadeId, { title, trajectoryId, archived, pinned });
+    }
+
+    summaryCache = { mtimeMs, data: summaries };
+    return summaries;
 }
 
 /**
@@ -128,16 +183,18 @@ async function parseTranscript(conversationId) {
         }
     }
 
-    const { workspacePath, source, trajectoryId } = getConversationMeta(conversationId);
-    const canonicalTitle = trajectoryId ? getCanonicalTitles().get(trajectoryId.toLowerCase()) : null;
-    const isScheduled = /^(?:\/schedule\b|(?:create|set up|schedule|run)\s+(?:a\s+)?(?:cron|scheduled task)\b)/i.test(firstUserRequest);
+    const { workspacePath, source } = getConversationMeta(conversationId);
+    const summary = getSummaryMetadata().get(conversationId);
+    const isScheduled = /^(?:\/schedule\b|your task is\b|(?:create|set up|schedule|run)\s+(?:a\s+)?(?:cron|scheduled task)\b)/i.test(firstUserRequest);
 
     return {
         id: conversationId,
-        title: canonicalTitle || title,
+        title: summary?.title || title,
         workspacePath,
         source,
         isScheduled,
+        isArchived: summary?.archived || false,
+        isPinned: summary?.pinned || false,
         lastUpdated: messages.length > 0 ? messages[messages.length - 1].created_at : null,
         messageCount: messages.length
     };
@@ -166,7 +223,7 @@ async function getRecentThreads(limit = 100) {
 
             if (!isArchived) {
                 const thread = await parseTranscript(dir.name);
-                if (thread && thread.title !== 'Untitled Thread' && thread.source !== 19 && !thread.isScheduled) {
+                if (thread && thread.title !== 'Untitled Thread' && thread.source !== 19 && !thread.isScheduled && !thread.isArchived) {
                     threads.push(thread);
                 }
             }
