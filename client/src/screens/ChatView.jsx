@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Send } from 'lucide-react';
+import { ChevronLeft, Mic, Plus, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { apiUrl } from '../api';
 
@@ -187,25 +187,32 @@ export default function ChatView() {
       </div>
 
       <div className="input-area">
-        <input 
-          type="text" 
-          className="input-box" 
-          placeholder="Ask Antigravity..." 
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            keepBottomAnchored();
-          }}
-          onFocus={keepBottomAnchored}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          disabled={sending || id === 'new'}
-        />
-        <button className="send-btn" onClick={handleSend} disabled={sending || id === 'new'}>
-          <Send size={20} />
-        </button>
-        {models.length > 0 && <select className="model-select" value={selectedModel} onChange={handleModelChange} aria-label="Select model">
-          {models.map(model => <option key={model} value={model}>{model}</option>)}
-        </select>}
+        <div className="composer">
+          <input
+            type="text"
+            className="input-box"
+            placeholder="Ask anything, @ to mention, / for actions"
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              keepBottomAnchored();
+            }}
+            onFocus={keepBottomAnchored}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            disabled={sending || id === 'new'}
+          />
+          <div className="composer-footer">
+            <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable" title="Attachments are unavailable">
+              <Plus size={16} strokeWidth={1.8} />
+            </button>
+            {models.length > 0 && <select className="model-select" value={selectedModel} onChange={handleModelChange} aria-label="Select model">
+              {models.map(model => <option key={model} value={model}>{model}</option>)}
+            </select>}
+          </div>
+          <button className="composer-submit" onClick={handleSend} disabled={sending || id === 'new' || !input.trim()} aria-label={input.trim() ? 'Send message' : 'Voice input unavailable'} title={input.trim() ? 'Send message' : 'Voice input unavailable'}>
+            {input.trim() ? <Send size={16} /> : <Mic size={16} />}
+          </button>
+        </div>
         {bridgeError && <div className="bridge-error" role="status">{bridgeError}</div>}
       </div>
     </div>

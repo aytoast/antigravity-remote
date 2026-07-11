@@ -425,11 +425,22 @@ body {
   left: 50%;
   width: min(680px, calc(100% - 24px));
   transform: translateX(-50%);
-  padding: 16px;
+  padding: 10px 0 12px;
   background: linear-gradient(to top, var(--bg-color) 80%, transparent);
-  display: flex;
-  align-items: center;
   z-index: 60;
+}
+
+.composer {
+  position: relative;
+  min-height: 80px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--surface-color);
+  transition: border-color 0.18s ease;
+}
+
+.composer:focus-within {
+  border-color: var(--text-secondary);
 }
 
 @media (max-width: 640px) {
@@ -452,62 +463,90 @@ body {
   }
 
   .input-area {
-    padding: 10px 12px;
-    flex-wrap: wrap;
-  }
-
-  .input-area .model-select {
-    order: 3;
-    flex: 1 0 100%;
-    width: 100%;
-    max-width: none;
-    margin: 8px 0 0;
+    width: min(100% - 20px, 680px);
+    padding: 8px 0 10px;
   }
 }
 
 .input-box {
-  flex: 1;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
   min-width: 0;
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 24px;
-  padding: 12px 20px;
+  padding: 12px 46px 8px 14px;
+  background: transparent;
+  border: 0;
   color: var(--text-primary);
   font-size: 0.95rem;
   outline: none;
   font-family: inherit;
-  transition: border-color 0.2s ease;
 }
 
-.input-box:focus {
-  border-color: var(--text-secondary);
+.input-box::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.72;
 }
 
-.send-btn {
+.composer-footer {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 42px 8px 10px;
+  gap: 8px;
+}
+
+.composer-add {
   background: none;
   border: none;
-  color: var(--text-primary);
-  margin-left: 12px;
+  color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.send-btn:disabled,
+.composer-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.composer-submit {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.composer-submit:not(:disabled):hover {
+  background: var(--text-primary);
+  color: var(--bg-color);
+}
+
+.composer-submit:disabled,
 .input-box:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
 .model-select {
-  max-width: 180px;
-  margin-left: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--surface-color);
+  max-width: min(210px, calc(100vw - 120px));
+  margin: 0;
+  padding: 4px 18px 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.78rem;
