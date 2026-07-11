@@ -7,19 +7,37 @@ try { Database = require('better-sqlite3'); } catch(e) {}
 const BRAIN_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'antigravity', 'brain');
 const CONV_DIR = path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'antigravity', 'conversations');
 const DOCS_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'Documents');
+const SUMMARY_PROTO_PATH = path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'antigravity', 'agyhub_summaries_proto.pb');
+let canonicalTitles;
+
+function getCanonicalTitles() {
+    if (canonicalTitles) return canonicalTitles;
+    canonicalTitles = new Map();
+    if (!fs.existsSync(SUMMARY_PROTO_PATH)) return canonicalTitles;
+    const text = fs.readFileSync(SUMMARY_PROTO_PATH).toString('latin1');
+    const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    for (const match of text.matchAll(uuidPattern)) {
+        const window = text.slice(Math.max(0, match.index - 220), match.index);
+        const titleMatches = [...window.matchAll(/([\x20-\x7e]{3,120})\x10/g)];
+        const title = titleMatches.at(-1)?.[1]?.trim().replace(/^[^\p{L}\p{N}]+/u, '');
+        if (title) canonicalTitles.set(match[0].toLowerCase(), title);
+    }
+    return canonicalTitles;
+}
 
 /**
  * Reads the workspace folder path and source type for a conversation
  * by inspecting its .db file.
  */
 function getConversationMeta(conversationId) {
-    if (!Database) return { workspacePath: null, source: null };
+    if (!Database) return { workspacePath: null, source: null, trajectoryId: null };
     const dbPath = path.join(CONV_DIR, `${conversationId}.db`);
     if (!fs.existsSync(dbPath)) return { workspacePath: null, source: null };
     try {
         const db = new Database(dbPath, { readonly: true });
         const blobRow = db.prepare('SELECT data FROM trajectory_metadata_blob').get();
         const metaRow = db.prepare('SELECT source FROM trajectory_meta').get();
+        const trajectoryId = db.prepare('SELECT trajectory_id FROM trajectory_meta').get()?.trajectory_id;
         db.close();
         let workspacePath = null;
         if (blobRow && blobRow.data) {
@@ -27,9 +45,9 @@ function getConversationMeta(conversationId) {
             const match = s.match(/file:\/\/\/([^\x00-\x1f\r\n]+)/);
             if (match) workspacePath = decodeURIComponent(match[1].replace(/\/+$/, ''));
         }
-        return { workspacePath, source: metaRow ? metaRow.source : null };
+        return { workspacePath, source: metaRow ? metaRow.source : null, trajectoryId };
     } catch (e) {
-        return { workspacePath: null, source: null };
+        return { workspacePath: null, source: null, trajectoryId: null };
     }
 }
 
@@ -87,6 +105,7 @@ async function parseTranscript(conversationId) {
 
     const messages = [];
     let title = 'Untitled Thread';
+    let firstUserRequest = '';
 
     for await (const line of rl) {
         try {
@@ -99,6 +118,7 @@ async function parseTranscript(conversationId) {
                     text = match[1];
                 }
                 text = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+                if (!firstUserRequest) firstUserRequest = text;
                 if (text) {
                     title = text.substring(0, 50) + (text.length > 50 ? '...' : '');
                 }
@@ -108,13 +128,16 @@ async function parseTranscript(conversationId) {
         }
     }
 
-    const { workspacePath, source } = getConversationMeta(conversationId);
+    const { workspacePath, source, trajectoryId } = getConversationMeta(conversationId);
+    const canonicalTitle = trajectoryId ? getCanonicalTitles().get(trajectoryId.toLowerCase()) : null;
+    const isScheduled = /^(?:\/schedule\b|(?:create|set up|schedule|run)\s+(?:a\s+)?(?:cron|scheduled task)\b)/i.test(firstUserRequest);
 
     return {
         id: conversationId,
-        title,
+        title: canonicalTitle || title,
         workspacePath,
         source,
+        isScheduled,
         lastUpdated: messages.length > 0 ? messages[messages.length - 1].created_at : null,
         messageCount: messages.length
     };
@@ -143,7 +166,7 @@ async function getRecentThreads(limit = 100) {
 
             if (!isArchived) {
                 const thread = await parseTranscript(dir.name);
-                if (thread && thread.title !== 'Untitled Thread' && thread.source !== 19) {
+                if (thread && thread.title !== 'Untitled Thread' && thread.source !== 19 && !thread.isScheduled) {
                     threads.push(thread);
                 }
             }
@@ -180,16 +203,78 @@ async function getThreadMessages(conversationId) {
                         text = text.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
                     }
                 }
-                messages.push({
-                    id: data.step_index,
-                    role: data.type === 'USER_INPUT' ? 'user' : 'ai',
-                    content: text,
-                    created_at: data.created_at
-                });
+                if (text) {
+                    messages.push({
+                        id: data.step_index,
+                        role: data.type === 'USER_INPUT' ? 'user' : 'ai',
+                        content: text,
+                        thinking: data.type === 'PLANNER_RESPONSE' ? data.thinking || '' : '',
+                        created_at: data.created_at
+                    });
+                }
+            } else if (['RUN_COMMAND', 'GENERIC', 'SYSTEM_MESSAGE'].includes(data.type)) {
+                const event = parseTimelineEvent(data);
+                if (event) messages.push(event);
             }
         } catch (e) {}
     }
     return messages;
+}
+
+function parseTimelineEvent(data) {
+    const content = String(data.content || '').trim();
+    const lines = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const taskDescription = lines.find(line => line.startsWith('Task Description:'))?.replace(/^Task Description:\s*/, '') || '';
+    const timerMatch = taskDescription.match(/^Timer:\s*(\d+)s,\s*Prompt:\s*(.+)$/i);
+    const taskMatch = lines.find(line => line.startsWith('Task:'))?.replace(/^Task:\s*/, '') || '';
+    const systemContent = content.match(/content=([\s\S]*?)<\/SYSTEM_MESSAGE>/i)?.[1]?.trim() || '';
+
+    if (data.type === 'RUN_COMMAND') {
+        return {
+            id: data.step_index,
+            role: 'event',
+            eventType: data.type,
+            title: taskDescription ? `Ran ${taskDescription.replace(/\s+/g, ' ')}` : 'Ran command',
+            detail: content,
+            created_at: data.created_at
+        };
+    }
+
+    if (timerMatch) {
+        return {
+            id: data.step_index,
+            role: 'event',
+            eventType: data.type,
+            title: `Timed ${timerMatch[1]} seconds`,
+            detail: timerMatch[2],
+            created_at: data.created_at
+        };
+    }
+
+    if (data.type === 'GENERIC') {
+        return {
+            id: data.step_index,
+            role: 'event',
+            eventType: data.type,
+            title: taskMatch ? `Task ${taskMatch}` : 'Task update',
+            detail: content,
+            created_at: data.created_at
+        };
+    }
+
+    if (systemContent) {
+        const finished = systemContent.includes('finished with result');
+        return {
+            id: data.step_index,
+            role: 'event',
+            eventType: data.type,
+            title: finished ? 'Command execution finished' : systemContent,
+            detail: finished ? systemContent : '',
+            created_at: data.created_at
+        };
+    }
+
+    return null;
 }
 
 module.exports = {

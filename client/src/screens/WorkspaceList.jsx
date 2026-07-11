@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Folder, Filter, FolderPlus, Archive, Pin } from 'lucide-react';
+import { Folder, Filter, FolderPlus, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
 
 // Format date relative (e.g. 1d, 4h)
@@ -15,6 +15,7 @@ const formatRelativeDate = (dateString) => {
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
+  const [workspaceOrder, setWorkspaceOrder] = useState([]);
   const [pinned, setPinned] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
@@ -22,23 +23,21 @@ export default function WorkspaceList() {
       return [];
     }
   });
-  const [archived, setArchived] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('archivedThreads')) || [];
-    } catch {
-      return [];
-    }
-  });
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
   const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([
       fetch(apiUrl('/api/workspaces')).then(res => res.json()),
-      fetch(apiUrl('/api/threads/recent?limit=100')).then(res => res.json()),
+      fetch(apiUrl('/api/sidebar-threads')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
-      if (threadData.success) setThreads(threadData.data);
+      if (threadData.success) {
+        setThreads(threadData.data.threads);
+        setWorkspaceOrder(threadData.data.workspaceOrder);
+        localStorage.removeItem('archivedThreads');
+      }
       if (pinData.success) {
         const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
         if (pinData.data.length || localPinned.length === 0) {
@@ -65,7 +64,7 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads.filter(t => !archived.includes(t.id));
+  const activeThreads = threads;
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
@@ -84,12 +83,20 @@ export default function WorkspaceList() {
 
   Object.values(projectsMap).forEach(projectThreads => {
     projectThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
-    projectThreads.splice(1);
   });
   looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
-  looseThreads.splice(4);
 
   const handleThreadClick = (id) => navigate(`/chat/${id}`);
+
+  const toggleWorkspace = (e, workspaceId) => {
+    e.stopPropagation();
+    setExpandedWorkspaces(previous => {
+      const next = new Set(previous);
+      if (next.has(workspaceId)) next.delete(workspaceId);
+      else next.add(workspaceId);
+      return next;
+    });
+  };
 
   const togglePin = (e, threadId) => {
     e.stopPropagation();
@@ -103,13 +110,6 @@ export default function WorkspaceList() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ threadIds: newPinned })
     }).catch(err => console.error(err));
-  };
-
-  const archiveThread = (e, threadId) => {
-    e.stopPropagation();
-    const newArchived = [...archived, threadId];
-    setArchived(newArchived);
-    localStorage.setItem('archivedThreads', JSON.stringify(newArchived));
   };
 
   return (
@@ -131,9 +131,6 @@ export default function WorkspaceList() {
                   <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
                   </button>
-                  <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
-                    <Archive size={14} />
-                  </div>
                 </div>
               </div>
             ))}
@@ -149,34 +146,33 @@ export default function WorkspaceList() {
               <FolderPlus size={16} />
             </div>
           </div>
-          {workspaces.map(ws => (
+          {[...workspaces].sort((a, b) => workspaceOrder.indexOf(a.name) - workspaceOrder.indexOf(b.name)).map(ws => (
             <div key={ws.id} style={{ marginBottom: '16px' }}>
-              <div className="list-item project-item">
+              <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
                 <div className="list-item-icon">
                   <Folder size={18} />
                 </div>
                 <div className="list-item-content">{ws.name}</div>
               </div>
-              {projectsMap[ws.name].length === 0 ? (
-                <div className="empty-text">No conversations yet</div>
-              ) : (
-                projectsMap[ws.name].map(t => (
-                  <div key={t.id} className="list-item nested-thread" onClick={() => handleThreadClick(t.id)} style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                    <div className="list-item-content">
-                      <div className="list-item-title">{t.title}</div>
-                    </div>
-                    <div className="list-item-right">
-                      <div>{formatRelativeDate(t.lastUpdated)}</div>
-                      <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                        <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                      </button>
-                      <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
-                        <Archive size={14} />
+              <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
+                {projectsMap[ws.name].length === 0 ? (
+                  <div className="empty-text">No conversations yet</div>
+                ) : (
+                  projectsMap[ws.name].map(t => (
+                    <div key={t.id} className="list-item nested-thread" onClick={() => handleThreadClick(t.id)}>
+                      <div className="list-item-content">
+                        <div className="list-item-title">{t.title}</div>
+                      </div>
+                      <div className="list-item-right">
+                        <div>{formatRelativeDate(t.lastUpdated)}</div>
+                        <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                          <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -194,9 +190,6 @@ export default function WorkspaceList() {
                 <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                   <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
                 </button>
-                <div onClick={(e) => archiveThread(e, t.id)} style={{color: 'var(--text-secondary)'}}>
-                  <Archive size={14} />
-                </div>
               </div>
             </div>
           ))}

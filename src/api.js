@@ -1,6 +1,7 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads } = require('./parser');
 const { getPinnedThreads, setPinnedThreads } = require('./pins');
+const { getSidebarThreads } = require('./sidebar');
 
 const router = express.Router();
 
@@ -28,6 +29,10 @@ router.get('/threads/recent', async (req, res) => {
     res.json({ success: true, data: threads });
 });
 
+router.get('/sidebar-threads', async (req, res) => {
+    res.json({ success: true, data: await getSidebarThreads() });
+});
+
 // GET /api/workspaces/:id/threads — threads scoped to a single workspace
 router.get('/workspaces/:id/threads', async (req, res) => {
     const workspaces = getWorkspaces();
@@ -48,7 +53,9 @@ router.get('/workspaces/:id/threads', async (req, res) => {
 router.get('/threads/:id', async (req, res) => {
     const { getThreadMessages } = require('./parser');
     const messages = await getThreadMessages(req.params.id);
-    res.json({ success: true, data: messages });
+    const threads = await getRecentThreads(500);
+    const thread = threads.find(item => item.id === req.params.id) || null;
+    res.json({ success: true, data: messages, thread });
 });
 
 // GET /api/pairing/qr
