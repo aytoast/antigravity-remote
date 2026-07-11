@@ -150,6 +150,30 @@ export default function WorkspaceList() {
     }
   };
 
+  const toggleScheduled = async () => {
+    const previous = displaySelection;
+    const next = previous.includes('Scheduled')
+      ? previous.filter(value => value !== 'Scheduled')
+      : [...previous, 'Scheduled'];
+
+    setDisplaySelection(next);
+    setDesktopNotice('');
+
+    try {
+      const response = await fetch(apiUrl('/api/desktop/sidebar-options'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ option: 'Scheduled' })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop scheduled filter failed');
+      setDisplaySelection(data.data.selected);
+    } catch (error) {
+      setDisplaySelection(previous);
+      setDesktopNotice(error.message);
+    }
+  };
+
   const flatDisplay = displaySelection.includes('None');
   const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
 
@@ -195,7 +219,10 @@ export default function WorkspaceList() {
                   <button type="button" className={displaySelection.includes('Last Updated') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Last Updated')}>Last Updated</button>
                   <button type="button" className={displaySelection.includes('Alphabetical (A-Z)') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Alphabetical (A-Z)')}>Alphabetical (A-Z)</button>
                   <span>Filter</span>
-                  <button type="button" className={displaySelection.includes('Scheduled') ? 'is-selected' : ''} onClick={() => setDesktopDisplayOption('Scheduled')}>Scheduled</button>
+                  <button type="button" className="display-toggle-row" role="switch" aria-checked={displaySelection.includes('Scheduled')} onClick={toggleScheduled}>
+                    <span>Scheduled</span>
+                    <span className={`display-toggle${displaySelection.includes('Scheduled') ? ' is-enabled' : ''}`} aria-hidden="true"><span /></span>
+                  </button>
                 </div>}
               </div>
               <button className="sidebar-icon-button" type="button" onClick={() => navigate('/tasks')} aria-label="Open scheduled tasks" title="Scheduled Tasks">

@@ -123,7 +123,7 @@ body {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
-.display-options-menu span {
+.display-options-menu > span {
   display: block;
   padding: 5px 10px 3px;
   color: var(--text-secondary);
@@ -146,6 +146,39 @@ body {
 .display-options-menu button.is-selected {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+.display-options-menu .display-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.display-toggle {
+  width: 28px;
+  height: 16px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--border-color);
+  transition: background-color 160ms ease;
+}
+
+.display-toggle > span {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  transform: translateX(0);
+  transition: transform 160ms ease;
+}
+
+.display-toggle.is-enabled {
+  background: var(--accent-color);
+}
+
+.display-toggle.is-enabled > span {
+  transform: translateX(12px);
 }
 
 .desktop-notice {
