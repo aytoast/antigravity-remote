@@ -132,7 +132,19 @@ async function sendPrompt(cascadeId, prompt) {
 }
 
 async function listModels(cascadeId) {
-    const target = await findTarget(cascadeId);
+    let target;
+    try {
+        target = await findTarget(cascadeId);
+    } catch {
+        const targets = await listTargets(true);
+        for (const candidate of targets) {
+            if (await evaluate(candidate, `Boolean(document.querySelector('[aria-label^="Select model"]'))`)) {
+                target = candidate;
+                break;
+            }
+        }
+        if (!target) throw new Error('Antigravity model selector is unavailable');
+    }
     const result = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return {models:[],selected:''}; const selected=button.innerText.trim(); button.click(); return new Promise(resolve=>setTimeout(()=>resolve({selected,models:[...document.querySelectorAll('[role="menuitem"],button')].map(item=>item.innerText.trim()).filter(Boolean)}),150))})()`);
     const models = [...new Set((result?.models || []).filter(model => /\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\b/i.test(model)))];
     return { models, selected: models.includes(result?.selected) ? result.selected : (models[0] || '') };
