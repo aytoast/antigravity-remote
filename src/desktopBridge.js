@@ -70,10 +70,18 @@ async function sendPrompt(cascadeId, prompt) {
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
         socket.on('open', () => socket.send(JSON.stringify({ id: 1, method: 'Input.insertText', params: { text: prompt } })));
-        socket.on('message', () => { socket.send(JSON.stringify({ id: 2, method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 } })); socket.send(JSON.stringify({ id: 3, method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 } })); resolve(); });
+        socket.on('message', message => {
+            const response = JSON.parse(message.toString());
+            if (response.id !== 1) return;
+            socket.send(JSON.stringify({ id: 2, method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 } }));
+            socket.send(JSON.stringify({ id: 3, method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 } }));
+            resolve();
+        });
         socket.on('error', reject);
     });
     socket.close();
+    const submitted = await evaluate(target, `new Promise(resolve=>setTimeout(()=>{const editor=document.querySelector('[aria-label="Message input"]'); resolve(!editor || editor.innerText.trim()==='')},250))`);
+    if (!submitted) throw new Error('Desktop did not submit prompt');
     return { accepted: true };
 }
 

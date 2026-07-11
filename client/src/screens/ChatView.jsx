@@ -74,6 +74,22 @@ export default function ChatView() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Desktop prompt failed');
       setMessages(previous => [...previous, { id: `mobile-${Date.now()}`, role: 'user', content: prompt }]);
+      let attempts = 0;
+      const refresh = async () => {
+        attempts += 1;
+        try {
+          const history = await fetch(apiUrl(`/api/threads/${id}`)).then(result => result.json());
+          if (history.success) {
+            const cleanMsgs = history.data.map(message => ({
+              ...message,
+              content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+            }));
+            setMessages(cleanMsgs);
+          }
+        } catch {}
+        if (attempts < 30) window.setTimeout(refresh, 1000);
+      };
+      window.setTimeout(refresh, 1000);
     } catch (error) {
       setInput(prompt);
       setBridgeError(error.message);
