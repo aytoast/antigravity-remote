@@ -2,6 +2,7 @@ const express = require('express');
 const { getWorkspaces, getRecentThreads, getPinnedThreadIds } = require('./parser');
 const desktopBridge = require('./desktopBridge');
 const { getScheduledSidecars, getScheduledSidecar } = require('./sidecars');
+const { getSkills } = require('./skills');
 
 const router = express.Router();
 
@@ -9,6 +10,10 @@ const router = express.Router();
 router.get('/workspaces', (req, res) => {
     const workspaces = getWorkspaces();
     res.json({ success: true, data: workspaces });
+});
+
+router.get('/skills', (req, res) => {
+    res.json({ success: true, data: getSkills() });
 });
 
 router.get('/pinned-threads', (req, res) => {

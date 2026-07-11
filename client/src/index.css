@@ -838,6 +838,12 @@ body {
   cursor: pointer;
 }
 
+.slash-section-label {
+  padding: 6px 9px 4px;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
 .slash-option:hover,
 .slash-option.is-selected {
   background: var(--surface-hover);

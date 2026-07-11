@@ -5,16 +5,17 @@ import ReactMarkdown from 'react-markdown';
 import { apiUrl } from '../api';
 import { ChatSkeleton } from '../components/LoadingSkeleton';
 
-const slashCommands = [
+const builtinSlashCommands = [
   { name: 'btw', description: 'Ask a quick question without interrupting the main conversation.' },
   { name: 'goal', description: 'Run until the specified goal is completely finished' },
   { name: 'schedule', description: 'Run an instruction on a recurring schedule or as a one-time timer' },
   { name: 'browser', description: 'Invoke a browser agent for web tasks' },
   { name: 'grill-me', description: 'Interview me to align on a plan' },
   { name: 'teamwork-preview', description: 'Invoke a team of agents to autonomously tackle large projects' },
-  { name: 'learn', description: 'Reflect on recent successes or corrections to capture reusable skills or rules' },
-  { name: 'add-source', description: 'Add a source to this knowledge-base repo' }
+  { name: 'learn', description: 'Reflect on recent successes or corrections to capture reusable skills or rules' }
 ];
+
+const addSourceSkill = { name: 'add-source', description: 'Add a source to this knowledge-base repo', scope: 'skill' };
 
 export default function ChatView() {
   const { id } = useParams();
@@ -30,6 +31,7 @@ export default function ChatView() {
   const [sending, setSending] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const [slashSelection, setSlashSelection] = useState(0);
+  const [skills, setSkills] = useState([addSourceSkill]);
   const chatScrollRef = useRef(null);
   const modelPickerRef = useRef(null);
   const positionedInitialHistory = useRef(false);
@@ -66,6 +68,13 @@ export default function ChatView() {
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    fetch(apiUrl('/api/skills'))
+      .then(res => res.json())
+      .then(data => { if (data.success) setSkills([addSourceSkill, ...data.data]); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (id === 'new') return;
@@ -163,6 +172,7 @@ export default function ChatView() {
     }
   };
 
+  const slashCommands = [...builtinSlashCommands, ...skills];
   const slashQuery = input.match(/^\/([^\s]*)$/)?.[1] ?? null;
   const visibleSlashCommands = slashQuery === null
     ? []
@@ -274,9 +284,9 @@ export default function ChatView() {
             disabled={sending || id === 'new'}
           />
           {visibleSlashCommands.length > 0 && <div className="slash-menu" role="listbox" aria-label="Actions">
-            {visibleSlashCommands.map((command, index) => (
+            {visibleSlashCommands.map((command, index) => (<React.Fragment key={command.name}>
+              {index === builtinSlashCommands.length && <div className="slash-section-label">Skills</div>}
               <button
-                key={command.name}
                 type="button"
                 role="option"
                 aria-selected={index === slashSelection}
@@ -287,7 +297,7 @@ export default function ChatView() {
                 <span className="slash-command"><span aria-hidden="true">‹›</span>{command.name}</span>
                 <span className="slash-description">{command.description}</span>
               </button>
-            ))}
+            </React.Fragment>))}
           </div>}
           <div className="composer-footer">
             <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable" title="Attachments are unavailable">
