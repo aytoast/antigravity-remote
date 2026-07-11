@@ -66,7 +66,6 @@ async function sendPrompt(cascadeId, prompt) {
     const target = await findTarget(cascadeId);
     const result = await evaluate(target, `(()=>{const editor=document.querySelector('[aria-label="Message input"]'); if(!editor) return false; editor.focus(); return true})()`);
     if (!result) throw new Error('Antigravity message input is unavailable');
-    await evaluate(target, `(()=>{document.activeElement?.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:${JSON.stringify(prompt)}})); return true})()`);
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
         socket.on('open', () => socket.send(JSON.stringify({ id: 1, method: 'Input.insertText', params: { text: prompt } })));

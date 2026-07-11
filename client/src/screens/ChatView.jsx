@@ -146,7 +146,7 @@ export default function ChatView() {
                 </div>
               </div>
             ) : (
-              <div key={m.id} className={`chat-bubble ${m.role}`}>
+              <div key={m.id} className={`chat-bubble ${m.role}${String(m.id).startsWith('mobile-') ? ' is-new-message' : ''}`}>
                 {m.role === 'ai' ? (
                   <>
                     {m.thinking && (

@@ -256,6 +256,10 @@ body {
   word-wrap: break-word;
 }
 
+.chat-bubble.is-new-message {
+  animation: messageEnter 0.18s ease-out both;
+}
+
 .chat-bubble.user {
   align-self: flex-end;
   background-color: var(--surface-color);
@@ -531,6 +535,11 @@ body {
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes messageEnter {
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
