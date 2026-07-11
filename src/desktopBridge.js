@@ -241,4 +241,41 @@ async function setScheduledTaskEnabled(name, enabled) {
     return result.tasks;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled };
+async function getScheduledTaskDetail(name) {
+    const target = await findSidebarTarget();
+    const detail = await evaluate(target, `(()=>{
+        const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+        const taskName=${JSON.stringify(name)};
+        const openTasks=()=>{
+            const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks');
+            if(!control) return false;
+            if(!document.querySelector('[role="switch"]')) control.click();
+            return true;
+        };
+        return (async()=>{
+            if(!openTasks()) return {error:'Scheduled Tasks is unavailable'};
+            await wait(100);
+            const toggle=[...document.querySelectorAll('[role="switch"]')].find(item=>item.parentElement?.parentElement?.innerText.split('\\n').map(line=>line.trim()).filter(Boolean)[0]===taskName);
+            const card=toggle?.parentElement?.parentElement;
+            if(!card) return {error:'Scheduled task is unavailable'};
+            card.click();
+            await wait(100);
+            const prompt=document.querySelector('textarea');
+            const title=prompt ? document.body.innerText.split('\\n').map(line=>line.trim()).filter(Boolean).find(line=>line===taskName) : taskName;
+            const workspace=[...document.querySelectorAll('button')].find(item=>item.title==='Open project settings')?.innerText.trim()||'';
+            const taskToggle=document.querySelector('[role="switch"]');
+            const events=[...document.querySelectorAll('button')].map(item=>item.innerText.trim()).filter(text=>text.includes('Triggered ')).map(text=>{
+                const lines=text.split('\\n').filter(Boolean);
+                return {title:lines[0], triggeredAt:lines[1]?.replace(/^Triggered\s*/, '').trim()||''};
+            });
+            const scheduleLines=document.body.innerText.split('\\n').map(line=>line.trim()).filter(Boolean);
+            const scheduleIndex=scheduleLines.indexOf('Schedule');
+            const schedule=scheduleIndex>=0?scheduleLines.slice(scheduleIndex+1,scheduleIndex+4).filter(value=>!['Save','Events'].includes(value)).join(' '):'';
+            return {name:title||taskName, workspace, prompt:prompt?.value||'', schedule, enabled:taskToggle?.getAttribute('aria-checked')==='true', events};
+        })();
+    })()`);
+    if (detail?.error) throw new Error(detail.error);
+    return detail;
+}
+
+module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

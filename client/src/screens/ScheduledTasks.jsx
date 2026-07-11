@@ -61,9 +61,9 @@ export default function ScheduledTasks() {
       </label>
       {error && <div className="tasks-error" role="status">{error}</div>}
       {loading ? <div className="tasks-skeleton" aria-busy="true"><span /><span /><span /><span /><span /></div> : <div className="tasks-list">
-        {visibleTasks.map(task => <div className="task-row" key={task.name}>
+        {visibleTasks.map(task => <div className="task-row" key={task.name} role="button" tabIndex={0} onClick={() => navigate(`/tasks/${encodeURIComponent(task.name)}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') navigate(`/tasks/${encodeURIComponent(task.name)}`); }}>
           <div className="task-copy"><div>{task.name}</div><small>{task.schedule}</small></div>
-          <button className={`task-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={() => toggleTask(task)}>
+          <button className={`task-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={event => { event.stopPropagation(); toggleTask(task); }}>
             <span />
           </button>
         </div>)}

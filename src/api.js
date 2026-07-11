@@ -48,6 +48,11 @@ router.get('/desktop/scheduled-tasks', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/desktop/scheduled-tasks/:name', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.getScheduledTaskDetail(req.params.name) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.put('/desktop/scheduled-tasks/:name', async (req, res) => {
     if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ success: false, error: 'enabled is required' });
     try { res.json({ success: true, data: await desktopBridge.setScheduledTaskEnabled(req.params.name, req.body.enabled) }); }

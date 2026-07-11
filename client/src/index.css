@@ -171,6 +171,9 @@ body {
 .back-button:hover { background: var(--surface-hover); }
 
 .tasks-page .navbar { justify-content: flex-start; }
+.task-detail-page .navbar { justify-content: flex-start; }
+.task-detail-page .navbar h1 { flex: 1; }
+.detail-toggle { margin-left: auto; }
 
 .tasks-content {
   width: min(100%, 640px);
@@ -249,6 +252,57 @@ body {
 
 .tasks-skeleton { display: grid; gap: 12px; margin-top: 16px; }
 .tasks-skeleton span { height: 52px; border-radius: 8px; background: var(--surface-color); animation: skeletonPulse 1.2s ease-in-out infinite alternate; }
+
+.task-detail-content {
+  width: min(100%, 640px);
+  margin: 0 auto;
+  padding: 12px 20px 28px;
+}
+
+.task-workspace {
+  padding: 6px 0 16px;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-detail-section { margin: 0 0 22px; }
+.task-detail-section h2 { margin-bottom: 8px; color: var(--text-secondary); font-size: 0.82rem; font-weight: 500; }
+
+.task-prompt {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  font: 0.8rem/1.5 var(--font-family);
+  white-space: pre-wrap;
+}
+
+.task-schedule {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-events { padding-top: 14px; border-top: 1px solid var(--border-color); }
+.task-event { padding: 10px 0; }
+.task-event + .task-event { border-top: 1px solid var(--border-color); }
+.task-event > div { font-size: 0.86rem; }
+.task-event small { color: var(--text-secondary); font-size: 0.75rem; }
+.task-detail-skeleton { display: grid; gap: 14px; }
+.task-detail-skeleton span { height: 42px; border-radius: 8px; background: var(--surface-color); animation: skeletonPulse 1.2s ease-in-out infinite alternate; }
 
 /* Container */
 .container {
