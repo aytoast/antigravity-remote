@@ -1,6 +1,7 @@
 const http = require('http');
 const { execFileSync } = require('child_process');
 const WebSocket = require('ws');
+let targetCache = { expiresAt: 0, targets: [] };
 
 const requestJson = (port, pathname) => new Promise((resolve, reject) => {
     const request = http.get({ host: '127.0.0.1', port, path: pathname, timeout: 500 }, response => {
@@ -28,14 +29,16 @@ function candidatePorts() {
 }
 
 async function listTargets() {
+    if (targetCache.expiresAt > Date.now()) return targetCache.targets;
     const targets = [];
-    for (const port of candidatePorts()) {
+    await Promise.all(candidatePorts().map(async port => {
         try {
             const pages = await requestJson(port, '/json/list');
             targets.push(...pages.map(page => ({ ...page, cdpPort: port })));
         } catch {}
-    }
-    return targets.filter(target => target.type === 'page' && target.webSocketDebuggerUrl);
+    }));
+    targetCache = { expiresAt: Date.now() + 5000, targets: targets.filter(target => target.type === 'page' && target.webSocketDebuggerUrl) };
+    return targetCache.targets;
 }
 
 async function findTarget(cascadeId) {
@@ -62,26 +65,46 @@ function evaluate(target, expression) {
     });
 }
 
+function openSession(target) {
+    return new Promise((resolve, reject) => {
+        const socket = new WebSocket(target.webSocketDebuggerUrl);
+        const fail = error => { try { socket.close(); } catch {} reject(error); };
+        socket.once('open', () => resolve(socket));
+        socket.once('error', fail);
+    });
+}
+
+function sendCommand(socket, id, method, params = {}) {
+    return new Promise((resolve, reject) => {
+        const onMessage = payload => {
+            let message;
+            try { message = JSON.parse(payload.toString()); } catch { return; }
+            if (message.id !== id) return;
+            socket.off('message', onMessage);
+            if (message.error) reject(new Error(message.error.message));
+            else resolve(message.result);
+        };
+        socket.on('message', onMessage);
+        socket.send(JSON.stringify({ id, method, params }));
+    });
+}
+
 async function sendPrompt(cascadeId, prompt) {
     const target = await findTarget(cascadeId);
-    const result = await evaluate(target, `(()=>{const editor=document.querySelector('[aria-label="Message input"]'); if(!editor) return false; editor.focus(); return true})()`);
-    if (!result) throw new Error('Antigravity message input is unavailable');
-    const socket = new WebSocket(target.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-        socket.on('open', () => socket.send(JSON.stringify({ id: 1, method: 'Input.insertText', params: { text: prompt } })));
-        socket.on('message', message => {
-            const response = JSON.parse(message.toString());
-            if (response.id !== 1) return;
-            socket.send(JSON.stringify({ id: 2, method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 } }));
-            socket.send(JSON.stringify({ id: 3, method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 } }));
-            resolve();
-        });
-        socket.on('error', reject);
-    });
-    socket.close();
-    const submitted = await evaluate(target, `new Promise(resolve=>setTimeout(()=>{const editor=document.querySelector('[aria-label="Message input"]'); resolve(!editor || editor.innerText.trim()==='')},250))`);
-    if (!submitted) throw new Error('Desktop did not submit prompt');
-    return { accepted: true };
+    const socket = await openSession(target);
+    let nextId = 1;
+    try {
+        const focused = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `(()=>{const editor=document.querySelector('[aria-label="Message input"]'); if(!editor) return false; editor.focus(); return true})()`, awaitPromise: true, returnByValue: true });
+        if (!focused?.result?.value) throw new Error('Antigravity message input is unavailable');
+        await sendCommand(socket, nextId++, 'Input.insertText', { text: prompt });
+        await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
+        await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
+        const submitted = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `new Promise(resolve=>setTimeout(()=>{const editor=document.querySelector('[aria-label="Message input"]'); resolve(!editor || editor.innerText.trim()==='')},250))`, awaitPromise: true, returnByValue: true });
+        if (!submitted?.result?.value) throw new Error('Desktop did not submit prompt');
+        return { accepted: true };
+    } finally {
+        try { socket.close(); } catch {}
+    }
 }
 
 async function listModels(cascadeId) {
