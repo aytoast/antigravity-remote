@@ -28,6 +28,7 @@ export default function ScheduledTasks() {
   useEffect(() => { loadTasks(); }, []);
 
   const toggleTask = async (task) => {
+    if (task.enabled === null) return;
     const previous = tasks;
     setTasks(current => current.map(item => item.name === task.name ? { ...item, enabled: !item.enabled } : item));
     try {
@@ -63,7 +64,7 @@ export default function ScheduledTasks() {
       {loading ? <div className="tasks-skeleton" aria-busy="true"><span /><span /><span /><span /><span /></div> : <div className="tasks-list">
         {visibleTasks.map(task => <div className="task-row" key={task.name} role="button" tabIndex={0} onClick={() => navigate(`/tasks/${encodeURIComponent(task.name)}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') navigate(`/tasks/${encodeURIComponent(task.name)}`); }}>
           <div className="task-copy"><div>{task.name}</div><small>{task.schedule}</small></div>
-          <button className={`task-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={event => { event.stopPropagation(); toggleTask(task); }}>
+          <button className={`task-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled === null ? undefined : task.enabled} disabled={task.enabled === null} aria-label={task.enabled === null ? `${task.name} state unavailable while desktop is closed` : `${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={event => { event.stopPropagation(); toggleTask(task); }}>
             <span />
           </button>
         </div>)}

@@ -9,48 +9,38 @@ export default function WorkspaceDetail() {
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pinned, setPinned] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
-    } catch {
-      return [];
-    }
-  });
+  const [pinned, setPinned] = useState([]);
+  const [pinError, setPinError] = useState('');
 
   useEffect(() => {
     fetch(apiUrl('/api/pinned-threads'))
       .then(res => res.json())
       .then(data => {
-        if (!data.success) return;
-        const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
-        if (data.data.length || localPinned.length === 0) {
-          setPinned(data.data);
-          return;
-        }
-        fetch(apiUrl('/api/pinned-threads'), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ threadIds: localPinned })
-        }).catch(err => console.error(err));
+        if (data.success) setPinned(data.data);
       })
       .catch(err => console.error(err));
   }, []);
 
-  const togglePin = (e, threadId) => {
+  const togglePin = async (e, threadId) => {
     e.stopPropagation();
-    let newPinned;
-    if (pinned.includes(threadId)) {
-      newPinned = pinned.filter(id => id !== threadId);
-    } else {
-      newPinned = [...pinned, threadId];
-    }
+    const previous = pinned;
+    const shouldPin = !pinned.includes(threadId);
+    const newPinned = shouldPin ? [...pinned, threadId] : pinned.filter(id => id !== threadId);
     setPinned(newPinned);
-    localStorage.setItem('pinnedThreads', JSON.stringify(newPinned));
-    fetch(apiUrl('/api/pinned-threads'), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threadIds: newPinned })
-    }).catch(err => console.error(err));
+    setPinError('');
+    try {
+      const response = await fetch(apiUrl(`/api/pinned-threads/${threadId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: shouldPin })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop pin state did not update');
+      setPinned(data.data);
+    } catch (error) {
+      setPinned(previous);
+      setPinError(error.message);
+    }
   };
 
   useEffect(() => {
@@ -73,6 +63,7 @@ export default function WorkspaceDetail() {
         </div>
       </nav>
       <div className="container">
+        {pinError && <div className="desktop-notice" role="status">{pinError}</div>}
         {loading ? <FolderSkeleton /> : threads.length > 0 ? [...threads].sort((a, b) => {
           const aPinned = pinned.includes(a.id);
           const bPinned = pinned.includes(b.id);

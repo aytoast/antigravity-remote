@@ -144,6 +144,21 @@ async function selectModel(cascadeId, model) {
     return { selected: model };
 }
 
+async function setThreadPinned(cascadeId) {
+    const target = await findSidebarTarget();
+    const clicked = await evaluate(target, `(()=>{
+        const pill=document.querySelector('[data-testid="convo-pill-${cascadeId}"]');
+        const row=pill?.closest('[role="button"]');
+        const buttons=row?[...row.querySelectorAll('button')]:[];
+        const pinButton=buttons[1];
+        if(!pinButton) return false;
+        pinButton.click();
+        return true;
+    })()`);
+    if (!clicked) throw new Error('Conversation pin control is not rendered on desktop');
+    return { accepted: true };
+}
+
 const sidebarMenuExpression = (action) => `(()=>{
     const display=document.querySelector('[aria-label="Display Options"]');
     if(!display) return Promise.resolve({error:'Display options are unavailable'});
@@ -278,4 +293,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

@@ -16,13 +16,7 @@ const formatRelativeDate = (dateString) => {
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
-  const [pinned, setPinned] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
-    } catch {
-      return [];
-    }
-  });
+  const [pinned, setPinned] = useState([]);
   const [archived] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('archivedThreads')) || [];
@@ -45,18 +39,7 @@ export default function WorkspaceList() {
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
       if (threadData.success) setThreads(threadData.data);
-      if (pinData.success) {
-        const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
-        if (pinData.data.length || localPinned.length === 0) {
-          setPinned(pinData.data);
-        } else {
-          fetch(apiUrl('/api/pinned-threads'), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ threadIds: localPinned })
-          }).catch(err => console.error(err));
-        }
-      }
+      if (pinData.success) setPinned(pinData.data);
     }).catch(err => console.error(err)).finally(() => setLoading(false));
   }, []);
 
@@ -122,18 +105,27 @@ export default function WorkspaceList() {
     });
   };
 
-  const togglePin = (e, threadId) => {
+  const togglePin = async (e, threadId) => {
     e.stopPropagation();
+    const previous = pinned;
+    const shouldPin = !pinned.includes(threadId);
     const newPinned = pinned.includes(threadId)
       ? pinned.filter(id => id !== threadId)
       : [...pinned, threadId];
     setPinned(newPinned);
-    localStorage.setItem('pinnedThreads', JSON.stringify(newPinned));
-    fetch(apiUrl('/api/pinned-threads'), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threadIds: newPinned })
-    }).catch(err => console.error(err));
+    try {
+      const response = await fetch(apiUrl(`/api/pinned-threads/${threadId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: shouldPin })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop pin state did not update');
+      setPinned(data.data);
+    } catch (error) {
+      setPinned(previous);
+      setDesktopNotice(error.message);
+    }
   };
 
   const setDesktopDisplayOption = async (option) => {

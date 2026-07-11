@@ -80,6 +80,12 @@ function getSummaryMetadata() {
     return summaries;
 }
 
+function getPinnedThreadIds() {
+    return [...getSummaryMetadata().entries()]
+        .filter(([, metadata]) => metadata.pinned && !metadata.archived)
+        .map(([cascadeId]) => cascadeId);
+}
+
 /**
  * Reads the workspace folder path and source type for a conversation
  * by inspecting its .db file.
@@ -338,5 +344,6 @@ module.exports = {
     getWorkspaces,
     parseTranscript,
     getRecentThreads,
-    getThreadMessages
+    getThreadMessages,
+    getPinnedThreadIds
 };

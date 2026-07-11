@@ -247,6 +247,7 @@ body {
 
 .task-toggle.is-enabled { background: var(--accent-color); }
 .task-toggle.is-enabled span { transform: translateX(18px); }
+.task-toggle:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .tasks-error { margin-top: 12px; color: #f28b82; font-size: 0.82rem; }
 
