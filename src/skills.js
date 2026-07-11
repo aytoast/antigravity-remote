@@ -14,35 +14,45 @@ const parseFrontmatter = (content) => {
 
 const listSkillRoot = (root, scope) => {
     if (!fs.existsSync(root)) return [];
-    return fs.readdirSync(root, { withFileTypes: true })
-        .filter(entry => entry.isDirectory())
-        .flatMap(entry => {
-            const skillPath = path.join(root, entry.name, 'SKILL.md');
-            if (!fs.existsSync(skillPath)) return [];
-            try {
-                const frontmatter = parseFrontmatter(fs.readFileSync(skillPath, 'utf8'));
-                return [{
-                    name: frontmatter.name || entry.name,
-                    description: frontmatter.description || 'Run this skill',
-                    scope,
-                    slug: entry.name
-                }];
-            } catch {
-                return [];
-            }
-        });
+    const skillFiles = [];
+    const visit = (directory) => {
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+            const entryPath = path.join(directory, entry.name);
+            if (entry.isDirectory()) visit(entryPath);
+            else if (entry.isFile() && entry.name.toLowerCase() === 'skill.md') skillFiles.push(entryPath);
+        }
+    };
+    visit(root);
+    return skillFiles.flatMap(skillPath => {
+        try {
+            const frontmatter = parseFrontmatter(fs.readFileSync(skillPath, 'utf8'));
+            const fallback = path.basename(path.dirname(skillPath));
+            return [{
+                name: frontmatter.name || fallback,
+                description: frontmatter.description || 'Run this skill',
+                scope,
+                slug: frontmatter.name || fallback
+            }];
+        } catch {
+            return [];
+        }
+    });
 };
 
 const getSkills = () => {
     const roots = [
-        [path.join(process.cwd(), '.agents', 'skills'), 'local'],
-        [path.join(process.cwd(), '.codex', 'skills'), 'local'],
-        [path.join(os.homedir(), '.codex', 'skills'), 'global']
+        [path.join(process.cwd(), '.gemini', 'skills'), 'local'],
+        [path.join(os.homedir(), '.gemini', 'skills'), 'global'],
+        [path.join(os.homedir(), '.gemini', 'antigravity', 'global_skills'), 'global'],
+        [path.join(os.homedir(), '.gemini', 'antigravity-ide', 'global_skills'), 'global'],
+        [path.join(os.homedir(), '.gemini', 'config', 'plugins'), 'global'],
+        [path.join(os.homedir(), '.gemini', 'antigravity-ide', 'plugins'), 'global']
     ];
     const seen = new Set();
     return roots.flatMap(([root, scope]) => listSkillRoot(root, scope)).filter(skill => {
-        if (seen.has(skill.slug)) return false;
-        seen.add(skill.slug);
+        const key = skill.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
     });
 };
