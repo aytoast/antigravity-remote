@@ -10,6 +10,10 @@ export default function ChatView() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [threadTitle, setThreadTitle] = useState('Thread');
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [bridgeError, setBridgeError] = useState('');
+  const [sending, setSending] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const chatScrollRef = useRef(null);
   const positionedInitialHistory = useRef(false);
@@ -34,6 +38,19 @@ export default function ChatView() {
   }, [id]);
 
   useEffect(() => {
+    if (id === 'new') return;
+    fetch(apiUrl(`/api/desktop/${id}/models`))
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        const available = data.data.filter(model => model !== 'Antigravity');
+        setModels(available);
+        if (available.length) setSelectedModel(available[0]);
+      })
+      .catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
     if (!messages.length || positionedInitialHistory.current) return;
     const frame = requestAnimationFrame(() => {
       if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -42,14 +59,43 @@ export default function ChatView() {
     return () => cancelAnimationFrame(frame);
   }, [messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
-    setMessages([...messages, { id: Date.now(), role: 'user', content: input }]);
+    setSending(true);
+    setBridgeError('');
+    const prompt = input.trim();
     setInput('');
-    // Mock AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { id: Date.now(), role: 'ai', content: 'Processing your request...' }]);
-    }, 1000);
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/${id}/prompt`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop prompt failed');
+      setMessages(previous => [...previous, { id: `mobile-${Date.now()}`, role: 'user', content: prompt }]);
+    } catch (error) {
+      setInput(prompt);
+      setBridgeError(error.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleModelChange = async (event) => {
+    const model = event.target.value;
+    setSelectedModel(model);
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/${id}/model`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Model selection failed');
+    } catch (error) {
+      setBridgeError(error.message);
+    }
   };
 
   const toggleEvent = (eventId) => {
@@ -114,11 +160,16 @@ export default function ChatView() {
           placeholder="Ask Antigravity..." 
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+          disabled={sending || id === 'new'}
         />
-        <button className="send-btn" onClick={handleSend}>
+        <button className="send-btn" onClick={handleSend} disabled={sending || id === 'new'}>
           <Send size={20} />
         </button>
+        {models.length > 0 && <select className="model-select" value={selectedModel} onChange={handleModelChange} aria-label="Select model">
+          {models.map(model => <option key={model} value={model}>{model}</option>)}
+        </select>}
+        {bridgeError && <div className="bridge-error" role="status">{bridgeError}</div>}
       </div>
     </div>
   );

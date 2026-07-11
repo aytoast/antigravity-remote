@@ -480,6 +480,35 @@ body {
   justify-content: center;
 }
 
+.send-btn:disabled,
+.input-box:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.model-select {
+  max-width: 180px;
+  margin-left: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.bridge-error {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  color: #f28b82;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  text-align: center;
+}
+
 /* Empty states */
 .empty-text {
   font-size: 0.85rem;

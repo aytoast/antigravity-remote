@@ -1,6 +1,7 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads } = require('./parser');
 const { getPinnedThreads, setPinnedThreads } = require('./pins');
+const desktopBridge = require('./desktopBridge');
 
 const router = express.Router();
 
@@ -19,6 +20,28 @@ router.put('/pinned-threads', (req, res) => {
         return res.status(400).json({ success: false, error: 'threadIds must be an array' });
     }
     res.json({ success: true, data: setPinnedThreads(req.body.threadIds) });
+});
+
+router.get('/desktop/status', async (req, res) => {
+    const targets = await desktopBridge.listTargets();
+    res.json({ success: true, connected: targets.length > 0, targets: targets.map(target => ({ title: target.title, url: target.url })) });
+});
+
+router.get('/desktop/:id/models', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.listModels(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.put('/desktop/:id/model', async (req, res) => {
+    if (typeof req.body?.model !== 'string' || !req.body.model.trim()) return res.status(400).json({ success: false, error: 'model is required' });
+    try { res.json({ success: true, data: await desktopBridge.selectModel(req.params.id, req.body.model.trim()) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/desktop/:id/prompt', async (req, res) => {
+    if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
+    try { res.json({ success: true, data: await desktopBridge.sendPrompt(req.params.id, req.body.prompt) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 // GET /api/threads/recent
