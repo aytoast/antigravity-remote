@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, MessageSquare, Plus, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
+import { FolderSkeleton } from '../components/LoadingSkeleton';
 
 export default function WorkspaceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [pinned, setPinned] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('pinnedThreads')) || [];
@@ -52,12 +54,14 @@ export default function WorkspaceDetail() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetch(apiUrl(`/api/workspaces/${id}/threads`))
       .then(res => res.json())
       .then(data => {
         if (data.success) setThreads(data.data);
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   }, [id]);
 
   return (
@@ -69,7 +73,7 @@ export default function WorkspaceDetail() {
         </div>
       </nav>
       <div className="container">
-        {threads && threads.length > 0 ? [...threads].sort((a, b) => {
+        {loading ? <FolderSkeleton /> : threads.length > 0 ? [...threads].sort((a, b) => {
           const aPinned = pinned.includes(a.id);
           const bPinned = pinned.includes(b.id);
           if (aPinned === bPinned) return 0;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Folder, Filter, FolderPlus, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
+import { HomeSkeleton } from '../components/LoadingSkeleton';
 
 // Format date relative (e.g. 1d, 4h)
 const formatRelativeDate = (dateString) => {
@@ -30,6 +31,7 @@ export default function WorkspaceList() {
     }
   });
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function WorkspaceList() {
           }).catch(err => console.error(err));
         }
       }
-    }).catch(err => console.error(err));
+    }).catch(err => console.error(err)).finally(() => setLoading(false));
   }, []);
 
   // Match thread to workspace using the workspacePath field the backend provides
@@ -125,7 +127,7 @@ export default function WorkspaceList() {
   return (
     <div className="animate-fade-in">
       <div className="container" style={{ paddingTop: '20px' }}>
-        
+        {loading ? <HomeSkeleton /> : <>
         {/* Pinned Section */}
         {pinnedThreads.length > 0 && (
           <div className="section">
@@ -205,6 +207,7 @@ export default function WorkspaceList() {
           ))}
         </div>
 
+        </>}
       </div>
     </div>
   );

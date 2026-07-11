@@ -1,21 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Mic, Plus, Send } from 'lucide-react';
+import { ChevronLeft, ChevronUp, Mic, Plus, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { apiUrl } from '../api';
+import { ChatSkeleton } from '../components/LoadingSkeleton';
 
 export default function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [threadTitle, setThreadTitle] = useState('Thread');
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [bridgeError, setBridgeError] = useState('');
   const [sending, setSending] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const chatScrollRef = useRef(null);
+  const modelPickerRef = useRef(null);
   const positionedInitialHistory = useRef(false);
   const userScrolledAway = useRef(false);
 
@@ -27,7 +31,13 @@ export default function ChatView() {
   useEffect(() => {
     positionedInitialHistory.current = false;
     userScrolledAway.current = false;
-    if (id === 'new') return;
+    setModelMenuOpen(false);
+    if (id === 'new') {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setMessages([]);
     fetch(apiUrl(`/api/threads/${id}`))
       .then(res => res.json())
       .then(data => {
@@ -41,7 +51,8 @@ export default function ChatView() {
           setMessages(cleanMsgs);
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
@@ -56,6 +67,15 @@ export default function ChatView() {
       })
       .catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    if (!modelMenuOpen) return undefined;
+    const closeMenu = (event) => {
+      if (!modelPickerRef.current?.contains(event.target)) setModelMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, [modelMenuOpen]);
 
   useEffect(() => {
     if (!messages.length) return;
@@ -115,9 +135,9 @@ export default function ChatView() {
     }
   };
 
-  const handleModelChange = async (event) => {
-    const model = event.target.value;
+  const handleModelChange = async (model) => {
     setSelectedModel(model);
+    setModelMenuOpen(false);
     try {
       const response = await fetch(apiUrl(`/api/desktop/${id}/model`), {
         method: 'PUT',
@@ -151,7 +171,7 @@ export default function ChatView() {
       
       <div ref={chatScrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }} onScroll={handleChatScroll}>
         <div className="chat-container">
-          {messages.map(m => (
+          {loading ? <ChatSkeleton /> : messages.map(m => (
             m.role === 'event' ? (
               <div key={m.id} className={`timeline-event${expandedEvents.has(m.id) ? ' is-expanded' : ''}`}>
                 <button className="timeline-event-toggle" type="button" onClick={() => toggleEvent(m.id)} aria-expanded={expandedEvents.has(m.id)}>
@@ -205,9 +225,17 @@ export default function ChatView() {
             <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable" title="Attachments are unavailable">
               <Plus size={16} strokeWidth={1.8} />
             </button>
-            {models.length > 0 && <select className="model-select" value={selectedModel} onChange={handleModelChange} aria-label="Select model">
-              {models.map(model => <option key={model} value={model}>{model}</option>)}
-            </select>}
+            {models.length > 0 && <div className="model-picker" ref={modelPickerRef}>
+              <button className="model-trigger" type="button" onClick={() => setModelMenuOpen(open => !open)} onKeyDown={(event) => event.key === 'Escape' && setModelMenuOpen(false)} aria-expanded={modelMenuOpen} aria-haspopup="listbox">
+                <span>{selectedModel}</span>
+                <ChevronUp size={14} aria-hidden="true" />
+              </button>
+              {modelMenuOpen && <div className="model-menu" role="listbox" aria-label="Select model">
+                {models.map(model => <button key={model} type="button" className={`model-option${model === selectedModel ? ' is-selected' : ''}`} role="option" aria-selected={model === selectedModel} onClick={() => handleModelChange(model)}>
+                  {model}
+                </button>)}
+              </div>}
+            </div>}
           </div>
           <button className="composer-submit" onClick={handleSend} disabled={sending || id === 'new' || !input.trim()} aria-label={input.trim() ? 'Send message' : 'Voice input unavailable'} title={input.trim() ? 'Send message' : 'Voice input unavailable'}>
             {input.trim() ? <Send size={16} /> : <Mic size={16} />}
