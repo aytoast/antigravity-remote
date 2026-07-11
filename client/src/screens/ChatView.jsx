@@ -17,9 +17,16 @@ export default function ChatView() {
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const chatScrollRef = useRef(null);
   const positionedInitialHistory = useRef(false);
+  const userScrolledAway = useRef(false);
+
+  const scrollToBottom = () => {
+    const container = chatScrollRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  };
 
   useEffect(() => {
     positionedInitialHistory.current = false;
+    userScrolledAway.current = false;
     if (id === 'new') return;
     fetch(apiUrl(`/api/threads/${id}`))
       .then(res => res.json())
@@ -51,13 +58,23 @@ export default function ChatView() {
   }, [id]);
 
   useEffect(() => {
-    if (!messages.length || positionedInitialHistory.current) return;
+    if (!messages.length) return;
     const frame = requestAnimationFrame(() => {
-      if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      if (!positionedInitialHistory.current || !userScrolledAway.current) scrollToBottom();
       positionedInitialHistory.current = true;
     });
     return () => cancelAnimationFrame(frame);
   }, [messages]);
+
+  const handleChatScroll = () => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+    userScrolledAway.current = container.scrollHeight - container.scrollTop - container.clientHeight > 40;
+  };
+
+  const keepBottomAnchored = () => {
+    if (!userScrolledAway.current) requestAnimationFrame(scrollToBottom);
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -132,7 +149,7 @@ export default function ChatView() {
         </div>
       </nav>
       
-      <div ref={chatScrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }}>
+      <div ref={chatScrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }} onScroll={handleChatScroll}>
         <div className="chat-container">
           {messages.map(m => (
             m.role === 'event' ? (
@@ -175,7 +192,11 @@ export default function ChatView() {
           className="input-box" 
           placeholder="Ask Antigravity..." 
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            keepBottomAnchored();
+          }}
+          onFocus={keepBottomAnchored}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
           disabled={sending || id === 'new'}
         />

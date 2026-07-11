@@ -220,7 +220,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 80px;
+  padding-bottom: 112px;
   width: min(100%, 640px);
   margin: 0 auto;
 }
@@ -444,6 +444,7 @@ body {
   .chat-container {
     --chat-text-size: 0.9rem;
     gap: 14px;
+    padding-bottom: 144px;
   }
 
   .chat-bubble {
