@@ -5,6 +5,17 @@ import ReactMarkdown from 'react-markdown';
 import { apiUrl } from '../api';
 import { ChatSkeleton } from '../components/LoadingSkeleton';
 
+const slashCommands = [
+  { name: 'btw', description: 'Ask a quick question without interrupting the main conversation.' },
+  { name: 'goal', description: 'Run until the specified goal is completely finished' },
+  { name: 'schedule', description: 'Run an instruction on a recurring schedule or as a one-time timer' },
+  { name: 'browser', description: 'Invoke a browser agent for web tasks' },
+  { name: 'grill-me', description: 'Interview me to align on a plan' },
+  { name: 'teamwork-preview', description: 'Invoke a team of agents to autonomously tackle large projects' },
+  { name: 'learn', description: 'Reflect on recent successes or corrections to capture reusable skills or rules' },
+  { name: 'add-source', description: 'Add a source to this knowledge-base repo' }
+];
+
 export default function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -18,6 +29,7 @@ export default function ChatView() {
   const [bridgeError, setBridgeError] = useState('');
   const [sending, setSending] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
+  const [slashSelection, setSlashSelection] = useState(0);
   const chatScrollRef = useRef(null);
   const modelPickerRef = useRef(null);
   const positionedInitialHistory = useRef(false);
@@ -151,6 +163,46 @@ export default function ChatView() {
     }
   };
 
+  const slashQuery = input.match(/^\/([^\s]*)$/)?.[1] ?? null;
+  const visibleSlashCommands = slashQuery === null
+    ? []
+    : slashCommands.filter(command => `${command.name} ${command.description}`.toLowerCase().includes(slashQuery.toLowerCase()));
+
+  useEffect(() => {
+    setSlashSelection(0);
+  }, [slashQuery]);
+
+  const selectSlashCommand = (command) => {
+    setInput(`/${command.name} `);
+    setSlashSelection(0);
+  };
+
+  const handleComposerKeyDown = (event) => {
+    if (visibleSlashCommands.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setSlashSelection(index => (index + 1) % visibleSlashCommands.length);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setSlashSelection(index => (index - 1 + visibleSlashCommands.length) % visibleSlashCommands.length);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setInput('');
+        return;
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        selectSlashCommand(visibleSlashCommands[slashSelection]);
+        return;
+      }
+    }
+    if (event.key === 'Enter' && !event.shiftKey) handleSend();
+  };
+
   const toggleEvent = (eventId) => {
     setExpandedEvents(previous => {
       const next = new Set(previous);
@@ -218,9 +270,25 @@ export default function ChatView() {
               keepBottomAnchored();
             }}
             onFocus={keepBottomAnchored}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            onKeyDown={handleComposerKeyDown}
             disabled={sending || id === 'new'}
           />
+          {visibleSlashCommands.length > 0 && <div className="slash-menu" role="listbox" aria-label="Actions">
+            {visibleSlashCommands.map((command, index) => (
+              <button
+                key={command.name}
+                type="button"
+                role="option"
+                aria-selected={index === slashSelection}
+                className={`slash-option${index === slashSelection ? ' is-selected' : ''}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectSlashCommand(command)}
+              >
+                <span className="slash-command"><span aria-hidden="true">‹›</span>{command.name}</span>
+                <span className="slash-description">{command.description}</span>
+              </button>
+            ))}
+          </div>}
           <div className="composer-footer">
             <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable" title="Attachments are unavailable">
               <Plus size={16} strokeWidth={1.8} />
