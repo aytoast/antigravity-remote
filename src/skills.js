@@ -41,12 +41,8 @@ const listSkillRoot = (root, scope) => {
 
 const getSkills = () => {
     const roots = [
-        [path.join(process.cwd(), '.gemini', 'skills'), 'local'],
-        [path.join(os.homedir(), '.gemini', 'skills'), 'global'],
-        [path.join(os.homedir(), '.gemini', 'antigravity', 'global_skills'), 'global'],
-        [path.join(os.homedir(), '.gemini', 'antigravity-ide', 'global_skills'), 'global'],
-        [path.join(os.homedir(), '.gemini', 'config', 'plugins'), 'global'],
-        [path.join(os.homedir(), '.gemini', 'antigravity-ide', 'plugins'), 'global']
+        [path.join(process.cwd(), '.agents', 'skills'), 'local'],
+        [path.join(os.homedir(), '.gemini', 'config', 'plugins'), 'global']
     ];
     const seen = new Set();
     return roots.flatMap(([root, scope]) => listSkillRoot(root, scope)).filter(skill => {
