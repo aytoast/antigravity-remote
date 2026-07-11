@@ -133,8 +133,9 @@ async function sendPrompt(cascadeId, prompt) {
 
 async function listModels(cascadeId) {
     const target = await findTarget(cascadeId);
-    const models = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return []; button.click(); return new Promise(resolve=>setTimeout(()=>resolve([...document.querySelectorAll('[role="menuitem"],button')].map(item=>item.innerText.trim()).filter(Boolean)),150))})()`);
-    return [...new Set((models || []).filter(model => /\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\b/i.test(model)))];
+    const result = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return {models:[],selected:''}; const selected=button.innerText.trim(); button.click(); return new Promise(resolve=>setTimeout(()=>resolve({selected,models:[...document.querySelectorAll('[role="menuitem"],button')].map(item=>item.innerText.trim()).filter(Boolean)}),150))})()`);
+    const models = [...new Set((result?.models || []).filter(model => /\b(?:Gemini|Claude|GPT|Grok|DeepSeek|Llama|Mistral|Qwen)\b/i.test(model)))];
+    return { models, selected: models.includes(result?.selected) ? result.selected : (models[0] || '') };
 }
 
 async function selectModel(cascadeId, model) {

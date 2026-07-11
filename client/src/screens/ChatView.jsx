@@ -82,9 +82,10 @@ export default function ChatView() {
       .then(res => res.json())
       .then(data => {
         if (!data.success) return;
-        const available = data.data.filter(model => model !== 'Antigravity');
+        const available = (Array.isArray(data.data) ? data.data : data.data.models).filter(model => model !== 'Antigravity');
         setModels(available);
-        if (available.length) setSelectedModel(available[0]);
+        const desktopSelected = Array.isArray(data.data) ? '' : data.data.selected;
+        if (available.length) setSelectedModel(available.includes(desktopSelected) ? desktopSelected : available[0]);
       })
       .catch(() => {});
   }, [id]);
