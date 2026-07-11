@@ -87,9 +87,9 @@ export default function ChatView() {
             setMessages(cleanMsgs);
           }
         } catch {}
-        if (attempts < 30) window.setTimeout(refresh, 1000);
+        if (attempts < 30) window.setTimeout(refresh, attempts < 12 ? 250 : 750);
       };
-      window.setTimeout(refresh, 1000);
+      window.setTimeout(refresh, 150);
     } catch (error) {
       setInput(prompt);
       setBridgeError(error.message);

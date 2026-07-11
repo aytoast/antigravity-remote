@@ -2,6 +2,7 @@ const http = require('http');
 const { execFileSync } = require('child_process');
 const WebSocket = require('ws');
 let targetCache = { expiresAt: 0, targets: [] };
+let knownCdpPorts = [];
 
 const requestJson = (port, pathname) => new Promise((resolve, reject) => {
     const request = http.get({ host: '127.0.0.1', port, path: pathname, timeout: 500 }, response => {
@@ -28,22 +29,35 @@ function candidatePorts() {
     }
 }
 
-async function listTargets() {
-    if (targetCache.expiresAt > Date.now()) return targetCache.targets;
+async function scanTargets(ports) {
     const targets = [];
-    await Promise.all(candidatePorts().map(async port => {
+    await Promise.all(ports.map(async port => {
         try {
             const pages = await requestJson(port, '/json/list');
             targets.push(...pages.map(page => ({ ...page, cdpPort: port })));
         } catch {}
     }));
-    targetCache = { expiresAt: Date.now() + 5000, targets: targets.filter(target => target.type === 'page' && target.webSocketDebuggerUrl) };
+    return targets.filter(target => target.type === 'page' && target.webSocketDebuggerUrl);
+}
+
+async function listTargets(forceRefresh = false) {
+    if (!forceRefresh && targetCache.expiresAt > Date.now()) return targetCache.targets;
+    let targets = knownCdpPorts.length ? await scanTargets(knownCdpPorts) : [];
+    if (!targets.length) {
+        targets = await scanTargets(candidatePorts());
+        knownCdpPorts = [...new Set(targets.map(target => target.cdpPort))];
+    }
+    targetCache = { expiresAt: Date.now() + 1000, targets };
     return targetCache.targets;
 }
 
 async function findTarget(cascadeId) {
-    const targets = await listTargets();
-    const target = targets.find(item => item.url.includes(`/c/${cascadeId}`));
+    let targets = await listTargets();
+    let target = targets.find(item => item.url.includes(`/c/${cascadeId}`));
+    if (!target) {
+        targets = await listTargets(true);
+        target = targets.find(item => item.url.includes(`/c/${cascadeId}`));
+    }
     if (!target) throw new Error('Antigravity conversation is not open on desktop');
     return target;
 }
@@ -99,7 +113,7 @@ async function sendPrompt(cascadeId, prompt) {
         await sendCommand(socket, nextId++, 'Input.insertText', { text: prompt });
         await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
         await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
-        const submitted = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `new Promise(resolve=>setTimeout(()=>{const editor=document.querySelector('[aria-label="Message input"]'); resolve(!editor || editor.innerText.trim()==='')},250))`, awaitPromise: true, returnByValue: true });
+        const submitted = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `new Promise(resolve=>{const started=performance.now(); const check=()=>{const editor=document.querySelector('[aria-label="Message input"]'); if(!editor || editor.innerText.trim()==='') return resolve(true); if(performance.now()-started>=250) return resolve(false); requestAnimationFrame(check)}; check()})`, awaitPromise: true, returnByValue: true });
         if (!submitted?.result?.value) throw new Error('Desktop did not submit prompt');
         return { accepted: true };
     } finally {
