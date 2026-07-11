@@ -22,6 +22,13 @@ export default function WorkspaceList() {
       return [];
     }
   });
+  const [archived] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('archivedThreads')) || [];
+    } catch {
+      return [];
+    }
+  });
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
   const navigate = useNavigate();
 
@@ -33,7 +40,6 @@ export default function WorkspaceList() {
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
       if (threadData.success) setThreads(threadData.data);
-      localStorage.removeItem('archivedThreads');
       if (pinData.success) {
         const localPinned = JSON.parse(localStorage.getItem('pinnedThreads') || '[]');
         if (pinData.data.length || localPinned.length === 0) {
@@ -60,7 +66,7 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads;
+  const activeThreads = threads.filter(thread => !archived.includes(thread.id));
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
