@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarClock, Clock3, Folder, Filter, Pin } from 'lucide-react';
 import { apiUrl } from '../api';
@@ -34,6 +34,9 @@ export default function WorkspaceList() {
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const [displaySelection, setDisplaySelection] = useState(['Project', 'Last Updated', 'No Subtitle']);
   const [desktopNotice, setDesktopNotice] = useState('');
+  const scheduledDesiredRef = useRef(null);
+  const scheduledServerRef = useRef(null);
+  const scheduledSyncRunningRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,7 +54,12 @@ export default function WorkspaceList() {
   useEffect(() => {
     fetch(apiUrl('/api/desktop/sidebar-options'))
       .then(res => res.json())
-      .then(data => { if (data.success) setDisplaySelection(data.data.selected); })
+      .then(data => {
+        if (!data.success) return;
+        const selected = data.data.selected;
+        scheduledServerRef.current = selected.includes('Scheduled');
+        if (scheduledDesiredRef.current === null) setDisplaySelection(selected);
+      })
       .catch(() => {});
   }, []);
 
@@ -150,28 +158,42 @@ export default function WorkspaceList() {
     }
   };
 
-  const toggleScheduled = async () => {
-    const previous = displaySelection;
-    const next = previous.includes('Scheduled')
-      ? previous.filter(value => value !== 'Scheduled')
-      : [...previous, 'Scheduled'];
-
-    setDisplaySelection(next);
+  const toggleScheduled = () => {
+    const current = displaySelection.includes('Scheduled');
+    const desired = !current;
+    if (scheduledServerRef.current === null) scheduledServerRef.current = current;
+    scheduledDesiredRef.current = desired;
+    setDisplaySelection(previous => desired
+      ? [...previous.filter(value => value !== 'Scheduled'), 'Scheduled']
+      : previous.filter(value => value !== 'Scheduled'));
     setDesktopNotice('');
 
-    try {
-      const response = await fetch(apiUrl('/api/desktop/sidebar-options'), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ option: 'Scheduled' })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop scheduled filter failed');
-      setDisplaySelection(data.data.selected);
-    } catch (error) {
-      setDisplaySelection(previous);
-      setDesktopNotice(error.message);
-    }
+    if (scheduledSyncRunningRef.current) return;
+    scheduledSyncRunningRef.current = true;
+    (async () => {
+      try {
+        while (scheduledServerRef.current !== scheduledDesiredRef.current) {
+          const response = await fetch(apiUrl('/api/desktop/sidebar-options'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ option: 'Scheduled' })
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || 'Desktop scheduled filter failed');
+          scheduledServerRef.current = data.data.selected.includes('Scheduled');
+        }
+      } catch (error) {
+        const serverState = scheduledServerRef.current;
+        scheduledDesiredRef.current = serverState;
+        setDisplaySelection(previous => serverState
+          ? [...previous.filter(value => value !== 'Scheduled'), 'Scheduled']
+          : previous.filter(value => value !== 'Scheduled'));
+        setDesktopNotice(error.message);
+      } finally {
+        scheduledSyncRunningRef.current = false;
+        if (scheduledServerRef.current !== scheduledDesiredRef.current) toggleScheduled();
+      }
+    })();
   };
 
   const flatDisplay = displaySelection.includes('None');
