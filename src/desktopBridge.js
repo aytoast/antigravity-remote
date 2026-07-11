@@ -21,7 +21,8 @@ const requestJson = (port, pathname) => new Promise((resolve, reject) => {
 function candidatePorts() {
     const configured = process.env.ANTIGRAVITY_CDP_PORT ? [Number(process.env.ANTIGRAVITY_CDP_PORT)] : [];
     try {
-        const output = execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Get-NetTCPConnection -State Listen | Select-Object -ExpandProperty LocalPort'], { encoding: 'utf8' });
+        const command = `$pids=(Get-Process Antigravity -ErrorAction SilentlyContinue).Id; netstat -ano -p TCP | ForEach-Object { if ($_ -match '^\\s*TCP\\s+\\S+:(\\d+)\\s+\\S+\\s+LISTENING\\s+(\\d+)$' -and $pids -contains [int]$Matches[2]) { $Matches[1] } }`;
+        const output = execFileSync('powershell.exe', ['-NoProfile', '-Command', command], { encoding: 'utf8' });
         const ports = output.split(/\r?\n/).map(Number).filter(Number.isInteger);
         return [...new Set([...configured, ...ports])];
     } catch {
