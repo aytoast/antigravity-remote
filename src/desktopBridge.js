@@ -72,6 +72,12 @@ async function findSidebarTarget() {
     throw new Error('Antigravity sidebar is not open on desktop');
 }
 
+async function listSidebarThreads() {
+    const target = await findSidebarTarget();
+    const threads = await evaluate(target, `(()=>[...document.querySelectorAll('[data-testid^="convo-pill-"]')].map((pill,index)=>({id:pill.getAttribute('data-testid').replace(/^convo-pill-/,''),title:(pill.innerText||'').trim().split('\\n')[0],order:index})))()`);
+    return Array.isArray(threads) ? threads : [];
+}
+
 async function findScheduledTasksTarget() {
     const targets = await listTargets(true);
     for (const target of targets) {
@@ -320,4 +326,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, listSidebarThreads, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

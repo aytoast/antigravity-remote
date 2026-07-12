@@ -22,13 +22,6 @@ export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
   const [pinned, setPinned] = useState([]);
-  const [archived] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('archivedThreads')) || [];
-    } catch {
-      return [];
-    }
-  });
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
@@ -42,7 +35,7 @@ export default function WorkspaceList() {
   useEffect(() => {
     Promise.all([
       fetch(apiUrl('/api/workspaces')).then(res => res.json()),
-      fetch(apiUrl('/api/threads/recent?limit=500&includeScheduled=true')).then(res => res.json()),
+      fetch(apiUrl('/api/desktop/sidebar-threads')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, threadData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
@@ -74,7 +67,7 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads.filter(thread => !archived.includes(thread.id) && (displaySelection.includes('Scheduled') || !thread.isScheduled));
+  const activeThreads = threads.filter(thread => displaySelection.includes('Scheduled') || !thread.isScheduled);
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath

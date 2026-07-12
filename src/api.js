@@ -46,6 +46,19 @@ router.get('/desktop/sidebar-options', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/desktop/sidebar-threads', async (req, res) => {
+    try {
+        const visible = await desktopBridge.listSidebarThreads();
+        const localThreads = await getRecentThreads(500, { includeScheduled: true });
+        const byId = new Map(localThreads.map(thread => [thread.id, thread]));
+        res.json({ success: true, data: visible.map(item => ({
+            ...(byId.get(item.id) || { id: item.id, workspacePath: null, source: null, isScheduled: false, isSyntheticTask: false, isArchived: false, isPinned: false, lastUpdated: null, messageCount: 0 }),
+            title: item.title || byId.get(item.id)?.title || 'Untitled Thread',
+            desktopOrder: item.order
+        })) });
+    } catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.put('/desktop/sidebar-options', async (req, res) => {
     if (typeof req.body?.option !== 'string') return res.status(400).json({ success: false, error: 'option is required' });
     try { res.json({ success: true, data: await desktopBridge.setSidebarOption(req.body.option) }); }
