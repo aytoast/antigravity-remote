@@ -275,11 +275,19 @@ body {
   cursor: pointer;
   font: inherit;
   font-weight: 600;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
 .workspace-new-conversation:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
+  background: rgba(224, 224, 224, 0.84);
+  border-color: rgba(224, 224, 224, 0.84);
+  color: var(--bg-color);
+  transform: translateY(-1px);
+}
+
+.workspace-new-conversation:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 @media (max-width: 560px) {
