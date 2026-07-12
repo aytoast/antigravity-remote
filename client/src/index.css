@@ -1208,19 +1208,30 @@ body {
 }
 
 .file-markdown {
-  line-height: 1.65;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 .file-markdown h1,
 .file-markdown h2,
 .file-markdown h3 {
-  margin: 1.4em 0 0.55em;
+  margin: 20px 0 8px;
+  line-height: 1.25;
 }
+
+.file-markdown h1 { font-size: 1.35rem; }
+.file-markdown h2 { font-size: 1.15rem; }
+.file-markdown h3 { font-size: 1rem; }
 
 .file-markdown p,
 .file-markdown ul,
 .file-markdown ol {
-  margin: 0.75em 0;
+  margin: 10px 0;
+}
+
+.file-markdown ul,
+.file-markdown ol {
+  padding-left: 24px;
 }
 
 .file-markdown pre {
@@ -1241,7 +1252,7 @@ body {
   width: 100%;
   margin: 1em 0;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: inherit;
 }
 
 .file-markdown th,
