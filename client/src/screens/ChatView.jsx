@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronUp, Mic, Plus, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../api';
 import { ChatSkeleton } from '../components/LoadingSkeleton';
 
@@ -20,6 +21,14 @@ const addSourceSkill = { name: 'add-source', description: 'Add a source to this 
 export default function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const markdownComponents = {
+    a: ({ href, children, ...props }) => {
+      const isExternal = /^(?:https?:|mailto:)/i.test(href || '');
+      const isFile = !isExternal && (String(href || '').startsWith('file:') || /(?:\\|\/|^)[^/?#]+\.(?:md|markdown|txt|json|yaml|yml|csv|tsv|py|js|ts|tsx|jsx|css)$/i.test(String(href || '')));
+      if (!isFile) return <a href={href} {...props}>{children}</a>;
+      return <a href={href} {...props} onClick={event => { event.preventDefault(); navigate(`/chat/${id}/file?path=${encodeURIComponent(href)}`); }}>{children}</a>;
+    }
+  };
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
@@ -265,7 +274,7 @@ export default function ChatView() {
                   <span className="timeline-chevron" aria-hidden="true">›</span>
                 </button>
                 <div className={`timeline-event-details${expandedEvents.has(m.id) ? ' is-expanded' : ''}`}>
-                  <div className="timeline-event-detail">{m.detail && <ReactMarkdown>{m.detail}</ReactMarkdown>}</div>
+                  <div className="timeline-event-detail">{m.detail && <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.detail}</ReactMarkdown>}</div>
                 </div>
               </div>
             ) : (
@@ -279,11 +288,11 @@ export default function ChatView() {
                           <span className="timeline-chevron" aria-hidden="true">›</span>
                         </button>
                         <div className={`timeline-event-details${expandedEvents.has(`${m.id}-thinking`) ? ' is-expanded' : ''}`}>
-                          <div className="timeline-event-detail"><ReactMarkdown>{m.thinking}</ReactMarkdown></div>
+                          <div className="timeline-event-detail"><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.thinking}</ReactMarkdown></div>
                         </div>
                       </div>
                     )}
-                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.content}</ReactMarkdown>
                   </>
                 ) : m.content}
               </div>

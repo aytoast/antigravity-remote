@@ -2,6 +2,7 @@ const express = require('express');
 const { getWorkspaces, getRecentThreads, getThreadMessages, getPinnedThreadIds } = require('./parser');
 const desktopBridge = require('./desktopBridge');
 const { getSkills } = require('./skills');
+const { readConversationFile } = require('./files');
 
 const router = express.Router();
 
@@ -13,6 +14,11 @@ router.get('/workspaces', (req, res) => {
 
 router.get('/skills', (req, res) => {
     res.json({ success: true, data: getSkills() });
+});
+
+router.get('/threads/:id/file', async (req, res) => {
+    try { res.json({ success: true, data: await readConversationFile(req.params.id, req.query.path) }); }
+    catch (error) { res.status(404).json({ success: false, error: error.message }); }
 });
 
 router.get('/pinned-threads', (req, res) => {
