@@ -24,6 +24,7 @@ export default function WorkspaceList() {
   const [pinned, setPinned] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
+  const [chatsExpanded, setChatsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const [displaySelection, setDisplaySelection] = useState(['Project', 'Last Updated', 'No Subtitle']);
@@ -115,6 +116,11 @@ export default function WorkspaceList() {
       else next.add(workspaceId);
       return next;
     });
+  };
+
+  const toggleChats = (e) => {
+    e.stopPropagation();
+    setChatsExpanded(expanded => !expanded);
   };
 
   const togglePin = async (e, threadId) => {
@@ -289,22 +295,25 @@ export default function WorkspaceList() {
           ))}
         </div>
 
-        {/* Loose Conversations Section */}
+        {/* Chats folder for unassigned recent conversations */}
         {!flatDisplay && <div className="section">
-          <div className="section-header">Conversations</div>
-          {looseThreads.map(t => (
-            <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
-              <div className="list-item-content">
-                <div className="list-item-title">{t.title}</div>
+          <div className="list-item project-item" onClick={toggleChats} role="button" tabIndex={0} aria-expanded={chatsExpanded} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChats(e); }}>
+            <div className="list-item-icon"><Folder size={18} /></div>
+            <div className="list-item-content">Chats</div>
+          </div>
+          <div className={`workspace-contents${chatsExpanded ? ' is-expanded' : ''}`}>
+            {looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map(t => (
+              <div key={t.id} className="list-item nested-thread" onClick={() => handleThreadClick(t.id)}>
+                <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
+                <div className="list-item-right">
+                  <ThreadTime thread={t} />
+                  <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
+                  </button>
+                </div>
               </div>
-              <div className="list-item-right">
-                <ThreadTime thread={t} />
-                <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                  <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>}
 
         </>}
