@@ -79,13 +79,13 @@ router.get('/desktop/sidebar-threads', async (req, res) => {
     } catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
-router.post('/desktop/:id/open', async (req, res) => {
-    try { res.json({ success: true, data: await desktopBridge.openConversation(req.params.id) }); }
+router.post('/desktop/new/open', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.openNewConversation() }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
-router.post('/desktop/new/open', async (req, res) => {
-    try { res.json({ success: true, data: await desktopBridge.openNewConversation() }); }
+router.post('/desktop/:id/open', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.openConversation(req.params.id) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
