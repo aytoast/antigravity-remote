@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, Clock3, Folder, Filter, Pin } from 'lucide-react';
+import { CalendarClock, Clock3, Folder, Filter, Pin, Search, SquarePen } from 'lucide-react';
 import { apiUrl } from '../api';
 import { HomeSkeleton } from '../components/LoadingSkeleton';
 
@@ -22,6 +22,7 @@ export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
   const [pinned, setPinned] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
@@ -67,7 +68,12 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads.filter(thread => displaySelection.includes('Scheduled') || !thread.isScheduled);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const activeThreads = threads.filter(thread => {
+    if (!displaySelection.includes('Scheduled') && thread.isScheduled) return false;
+    if (!normalizedQuery) return true;
+    return `${thread.title} ${getWorkspaceForThread(thread) || ''}`.toLowerCase().includes(normalizedQuery);
+  });
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
@@ -193,7 +199,7 @@ export default function WorkspaceList() {
   const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
 
   return (
-    <div className="animate-fade-in">
+    <div className="workspace-list-page animate-fade-in">
       <div className="container" style={{ paddingTop: '20px' }}>
         {loading ? <HomeSkeleton /> : <>
         {/* Pinned Section */}
@@ -302,6 +308,16 @@ export default function WorkspaceList() {
         </div>}
 
         </>}
+      </div>
+      <div className="workspace-floating-actions">
+        <label className="workspace-search">
+          <Search size={21} aria-hidden="true" />
+          <input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search conversations" aria-label="Search conversations" />
+        </label>
+        <button className="workspace-new-conversation" type="button" onClick={() => navigate('/chat/new')}>
+          <SquarePen size={20} aria-hidden="true" />
+          <span>New Conversation</span>
+        </button>
       </div>
     </div>
   );

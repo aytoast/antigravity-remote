@@ -209,6 +209,95 @@ body {
   font-size: 0.75rem;
 }
 
+.workspace-list-page {
+  min-height: 100vh;
+  padding-bottom: 88px;
+}
+
+.workspace-floating-actions {
+  position: fixed;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 16px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.workspace-search,
+.workspace-new-conversation {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary);
+}
+
+.workspace-search {
+  flex: 1;
+  gap: 10px;
+  padding: 0 16px;
+  border-radius: 28px;
+  color: var(--text-secondary);
+}
+
+.workspace-search:focus-within {
+  border-color: var(--text-secondary);
+}
+
+.workspace-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.workspace-search input::placeholder {
+  color: var(--text-secondary);
+}
+
+.workspace-new-conversation {
+  flex: 0 0 auto;
+  gap: 9px;
+  padding: 0 20px;
+  border-color: var(--text-primary);
+  border-radius: 28px;
+  background: var(--text-primary);
+  color: var(--bg-color);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.workspace-new-conversation:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+@media (max-width: 560px) {
+  .workspace-floating-actions {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 12px;
+  }
+
+  .workspace-new-conversation {
+    padding: 0 17px;
+  }
+
+  .workspace-new-conversation span {
+    display: none;
+  }
+}
+
 .thread-time {
   display: inline-flex;
   align-items: center;
