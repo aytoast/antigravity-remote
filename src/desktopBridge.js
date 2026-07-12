@@ -133,6 +133,20 @@ async function openNewConversation() {
     throw new Error('New Conversation is unavailable on desktop');
 }
 
+async function selectNewConversationProject(projectName) {
+    const targets = await listTargets(true);
+    for (const target of targets) {
+        const selected = await evaluate(target, `(()=>{
+            const trigger=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='New Conversation');
+            if(!trigger) return false;
+            trigger.click();
+            return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=[...document.querySelectorAll('button,[role="menuitem"],[role="option"]')].find(item=>item.offsetParent!==null && item!==trigger && item.innerText.trim()===${JSON.stringify(projectName)}); if(option){option.click(); return resolve(true)} if(performance.now()-started>700) return resolve(false); setTimeout(check,20)}; check()});
+        })()`);
+        if (selected) return { selected: projectName };
+    }
+    throw new Error('Requested project is unavailable on desktop');
+}
+
 function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -392,4 +406,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, setSidebarProjectExpanded, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, setSidebarProjectExpanded, openConversation, openNewConversation, selectNewConversationProject, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

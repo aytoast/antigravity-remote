@@ -116,6 +116,12 @@ router.post('/desktop/new/open', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.put('/desktop/new/project', async (req, res) => {
+    if (typeof req.body?.project !== 'string' || !req.body.project.trim()) return res.status(400).json({ success: false, error: 'project is required' });
+    try { res.json({ success: true, data: await desktopBridge.selectNewConversationProject(req.body.project.trim()) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.post('/desktop/:id/open', async (req, res) => {
     try { res.json({ success: true, data: await desktopBridge.openConversation(req.params.id) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

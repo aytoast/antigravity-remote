@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronUp, Mic, Plus, Send } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, Folder, Mic, Plus, Send } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../api';
@@ -39,6 +39,9 @@ export default function ChatView() {
   const [selectedModel, setSelectedModel] = useState('');
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [bridgeError, setBridgeError] = useState('');
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState('');
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const [slashSelection, setSlashSelection] = useState(0);
@@ -57,6 +60,7 @@ export default function ChatView() {
     positionedInitialHistory.current = false;
     userScrolledAway.current = false;
     setModelMenuOpen(false);
+    setProjectMenuOpen(false);
     setDesktopConversationId(id === 'new' ? '' : id);
     if (id === 'new') {
       setLoading(false);
@@ -68,6 +72,10 @@ export default function ChatView() {
           setDesktopConversationId('new');
         })
         .catch(error => setBridgeError(error.message));
+      fetch(apiUrl('/api/desktop/sidebar-projects'))
+        .then(res => res.json())
+        .then(data => { if (data.success) setProjects(data.data); })
+        .catch(() => {});
       return;
     }
     setLoading(true);
@@ -199,6 +207,18 @@ export default function ChatView() {
     }
   };
 
+  const handleProjectChange = async (project) => {
+    setSelectedProject(project.name);
+    setProjectMenuOpen(false);
+    try {
+      const response = await fetch(apiUrl('/api/desktop/new/project'), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: project.name })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Project selection failed');
+    } catch (error) { setBridgeError(error.message); }
+  };
+
   const slashCommands = [...builtinSlashCommands, ...skills];
   const slashQuery = input.match(/^\/([^\s]*)$/)?.[1] ?? null;
   const visibleSlashCommands = slashQuery === null
@@ -259,9 +279,20 @@ export default function ChatView() {
   return (
     <div className="chat-page">
       <nav className="navbar">
-        <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate(-1)}>
+        <div className="chat-heading-wrap">
+          <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate(-1)}>
           <ChevronLeft size={24} style={{ marginRight: '8px' }} />
-          <h1>{id === 'new' ? 'New Thread' : threadTitle}</h1>
+            <h1>{id === 'new' ? 'New Conversation' : threadTitle}</h1>
+          </div>
+          {id === 'new' && <div className="project-picker">
+            <button className="project-picker-trigger" type="button" onClick={() => setProjectMenuOpen(open => !open)} aria-expanded={projectMenuOpen} aria-haspopup="listbox">
+              <Folder size={15} /><span>{selectedProject || 'No Project'}</span><ChevronDown size={14} />
+            </button>
+            {projectMenuOpen && <div className="project-picker-menu" role="listbox" aria-label="Select project">
+              {projects.map(project => <button key={project.id} type="button" role="option" aria-selected={project.name === selectedProject} onClick={() => handleProjectChange(project)}><Folder size={15} />{project.name}</button>)}
+              <button type="button" role="option" aria-selected={!selectedProject} onClick={() => { setSelectedProject(''); setProjectMenuOpen(false); }}><Folder size={15} />No Project</button>
+            </div>}
+          </div>}
         </div>
       </nav>
       

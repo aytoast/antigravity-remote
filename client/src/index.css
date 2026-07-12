@@ -80,6 +80,60 @@ body {
   white-space: nowrap;
 }
 
+.chat-heading-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.project-picker { position: relative; margin-left: 6px; }
+.project-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.project-picker-trigger:hover { background: var(--surface-hover); color: var(--text-primary); }
+.project-picker-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 210px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  box-shadow: 0 12px 30px rgba(0,0,0,.35);
+}
+.project-picker-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: .82rem;
+  text-align: left;
+  cursor: pointer;
+}
+.project-picker-menu button:hover,
+.project-picker-menu button[aria-selected="true"] { background: var(--surface-hover); color: var(--text-primary); }
+
 .chat-page {
   display: flex;
   flex-direction: column;
