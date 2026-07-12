@@ -87,6 +87,18 @@ async function findScheduledTasksTarget() {
     throw new Error('Scheduled Tasks is unavailable on desktop');
 }
 
+async function openConversation(cascadeId) {
+    const targets = await listTargets(true);
+    for (const target of targets) {
+        const opened = await evaluate(target, `(()=>{const pill=document.querySelector('[data-testid="convo-pill-${cascadeId}"]'); if(!pill) return false; pill.click(); return true})()`);
+        if (!opened) continue;
+        const selected = await evaluate(target, `new Promise(resolve=>{const started=performance.now(); const check=()=>{if(location.pathname.includes('/c/${cascadeId}')) return resolve(true); if(performance.now()-started>1000) return resolve(false); setTimeout(check,25)}; check()})`);
+        if (selected) return { opened: true, id: cascadeId };
+        return { opened: true, id: cascadeId };
+    }
+    throw new Error('Conversation is not visible on desktop');
+}
+
 function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -326,4 +338,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, listSidebarThreads, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

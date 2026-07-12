@@ -78,7 +78,8 @@ export default function ChatView() {
 
   useEffect(() => {
     if (id === 'new') return;
-    fetch(apiUrl(`/api/desktop/${id}/models`))
+    fetch(apiUrl(`/api/desktop/${id}/open`), { method: 'POST' })
+      .then(() => fetch(apiUrl(`/api/desktop/${id}/models`)))
       .then(res => res.json())
       .then(data => {
         if (!data.success) return;

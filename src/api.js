@@ -59,6 +59,11 @@ router.get('/desktop/sidebar-threads', async (req, res) => {
     } catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.post('/desktop/:id/open', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.openConversation(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.put('/desktop/sidebar-options', async (req, res) => {
     if (typeof req.body?.option !== 'string') return res.status(400).json({ success: false, error: 'option is required' });
     try { res.json({ success: true, data: await desktopBridge.setSidebarOption(req.body.option) }); }
