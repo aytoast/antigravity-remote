@@ -1,7 +1,6 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads, getPinnedThreadIds } = require('./parser');
 const desktopBridge = require('./desktopBridge');
-const { getScheduledSidecars, getScheduledSidecar } = require('./sidecars');
 const { getSkills } = require('./skills');
 
 const router = express.Router();
@@ -59,25 +58,13 @@ router.post('/desktop/scheduled-tasks/open', async (req, res) => {
 });
 
 router.get('/desktop/scheduled-tasks', async (req, res) => {
-    const sidecars = getScheduledSidecars();
-    try {
-        const desktopTasks = await desktopBridge.listScheduledTasks();
-        const state = new Map(desktopTasks.map(task => [task.name, task.enabled]));
-        res.json({ success: true, data: sidecars.map(task => ({ ...task, enabled: state.get(task.name) ?? null })) });
-    } catch {
-        res.json({ success: true, data: sidecars.map(task => ({ ...task, enabled: null })) });
-    }
+    try { res.json({ success: true, data: await desktopBridge.listScheduledTasks() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 router.get('/desktop/scheduled-tasks/:name', async (req, res) => {
-    const sidecar = getScheduledSidecar(req.params.name);
-    if (!sidecar) return res.status(404).json({ success: false, error: 'Scheduled task is unavailable' });
-    try {
-        const desktop = await desktopBridge.getScheduledTaskDetail(req.params.name);
-        res.json({ success: true, data: { ...sidecar, workspace: sidecar.workspace || desktop.workspace, enabled: desktop.enabled, events: desktop.events } });
-    } catch {
-        res.json({ success: true, data: { ...sidecar, enabled: null, events: [] } });
-    }
+    try { res.json({ success: true, data: await desktopBridge.getScheduledTaskDetail(req.params.name) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 router.put('/desktop/scheduled-tasks/:name', async (req, res) => {

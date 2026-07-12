@@ -72,6 +72,15 @@ async function findSidebarTarget() {
     throw new Error('Antigravity sidebar is not open on desktop');
 }
 
+async function findScheduledTasksTarget() {
+    const targets = await listTargets(true);
+    for (const target of targets) {
+        const hasControl = await evaluate(target, `Boolean([...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks'))`);
+        if (hasControl) return target;
+    }
+    throw new Error('Scheduled Tasks is unavailable on desktop');
+}
+
 function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -219,8 +228,8 @@ async function setSidebarOption(option) {
 }
 
 async function openScheduledTasks() {
-    const target = await findSidebarTarget();
-    const opened = await evaluate(target, `(()=>{const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks'); if(!control) return false; control.click(); return true})()`);
+    const target = await findScheduledTasksTarget();
+    const opened = await evaluate(target, `(()=>{const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks'); if(!control) return false; const onTasksPage=[...document.querySelectorAll('h1')].some(item=>item.innerText.trim()==='Scheduled Tasks'); if(!onTasksPage) control.click(); return true})()`);
     if (!opened) throw new Error('Scheduled Tasks is unavailable on desktop');
     return { opened: true };
 }
@@ -230,7 +239,8 @@ const scheduledTasksExpression = (name, enabled) => `(()=>{
     const openTasks=()=>{
         const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks');
         if(!control) return false;
-        if(![...document.querySelectorAll('[role="switch"]')].length) control.click();
+        const onTasksPage=[...document.querySelectorAll('h1')].some(item=>item.innerText.trim()==='Scheduled Tasks');
+        if(!onTasksPage) control.click();
         return true;
     };
     const tasks=()=>[...document.querySelectorAll('[role="switch"]')].map(toggle=>{
@@ -257,14 +267,14 @@ const scheduledTasksExpression = (name, enabled) => `(()=>{
 })()`;
 
 async function listScheduledTasks() {
-    const target = await findSidebarTarget();
+    const target = await findScheduledTasksTarget();
     const result = await evaluate(target, scheduledTasksExpression(null, null));
     if (result?.error) throw new Error(result.error);
     return result?.tasks || [];
 }
 
 async function setScheduledTaskEnabled(name, enabled) {
-    const target = await findSidebarTarget();
+    const target = await findScheduledTasksTarget();
     const result = await evaluate(target, scheduledTasksExpression(name, enabled));
     if (result?.error) throw new Error(result.error);
     const task = result?.tasks?.find(item => item.name === name);
@@ -273,14 +283,15 @@ async function setScheduledTaskEnabled(name, enabled) {
 }
 
 async function getScheduledTaskDetail(name) {
-    const target = await findSidebarTarget();
+    const target = await findScheduledTasksTarget();
     const detail = await evaluate(target, `(()=>{
         const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         const taskName=${JSON.stringify(name)};
         const openTasks=()=>{
             const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='Scheduled Tasks');
             if(!control) return false;
-            if(!document.querySelector('[role="switch"]')) control.click();
+            const onTasksPage=[...document.querySelectorAll('h1')].some(item=>item.innerText.trim()==='Scheduled Tasks');
+            if(!onTasksPage) control.click();
             return true;
         };
         return (async()=>{
