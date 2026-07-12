@@ -94,7 +94,7 @@ export default function WorkspaceList() {
     ? a.title.localeCompare(b.title)
     : new Date(b.lastUpdated) - new Date(a.lastUpdated);
   Object.values(projectsMap).forEach(projectThreads => projectThreads.sort(sortThreads));
-  looseThreads.sort(sortThreads);
+  looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   const orderedWorkspaces = [...workspaces].sort((a, b) => {
     const aUpdated = projectsMap[a.name]?.[0]?.lastUpdated;
     const bUpdated = projectsMap[b.name]?.[0]?.lastUpdated;
