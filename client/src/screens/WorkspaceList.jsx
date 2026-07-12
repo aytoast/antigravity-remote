@@ -76,12 +76,7 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const activeThreads = threads.filter(thread => {
-    if (!displaySelection.includes('Scheduled') && thread.isScheduled) return false;
-    if (!normalizedQuery) return true;
-    return `${thread.title} ${getWorkspaceForThread(thread) || ''}`.toLowerCase().includes(normalizedQuery);
-  });
+  const activeThreads = threads.filter(thread => displaySelection.includes('Scheduled') || !thread.isScheduled);
   const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
