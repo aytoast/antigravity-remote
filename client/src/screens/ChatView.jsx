@@ -24,9 +24,10 @@ export default function ChatView() {
   const markdownComponents = {
     a: ({ href, children, ...props }) => {
       const isExternal = /^(?:https?:|mailto:)/i.test(href || '');
-      const isFile = !isExternal && (String(href || '').startsWith('file:') || /(?:\\|\/|^)[^/?#]+\.(?:md|markdown|txt|json|yaml|yml|csv|tsv|py|js|ts|tsx|jsx|css)$/i.test(String(href || '')));
+      const fileTarget = href || React.Children.toArray(children).join('');
+      const isFile = !isExternal && (String(fileTarget).startsWith('file:') || /(?:\\|\/|^)[^/?#]+\.(?:md|markdown|txt|json|yaml|yml|csv|tsv|py|js|ts|tsx|jsx|css)$/i.test(String(fileTarget)));
       if (!isFile) return <a href={href} {...props}>{children}</a>;
-      return <a href={href} {...props} onClick={event => { event.preventDefault(); navigate(`/chat/${id}/file?path=${encodeURIComponent(href)}`); }}>{children}</a>;
+      return <a href="#file" {...props} onMouseDown={event => event.preventDefault()} onClick={event => { event.preventDefault(); event.stopPropagation(); navigate(`/chat/${id}/file?path=${encodeURIComponent(fileTarget)}`); }}>{children}</a>;
     }
   };
   const [messages, setMessages] = useState([]);
