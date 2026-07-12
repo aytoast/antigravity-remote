@@ -39,7 +39,10 @@ export default function WorkspaceList() {
       fetch(apiUrl('/api/desktop/sidebar-projects')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, pinData]) => {
-      if (wsData.success) setWorkspaces(wsData.data);
+      if (wsData.success) {
+        setWorkspaces(wsData.data);
+        setExpandedWorkspaces(new Set(wsData.data.map(workspace => workspace.id)));
+      }
       if (pinData.success) setPinned(pinData.data);
     }).catch(err => console.error(err)).finally(() => setLoading(false));
   }, []);
