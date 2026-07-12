@@ -617,8 +617,8 @@ body {
   flex-direction: column;
   gap: 16px;
   padding-bottom: 112px;
-  width: min(100%, 640px);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
 }
 
 .skeleton-page {

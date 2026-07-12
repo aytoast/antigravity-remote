@@ -250,10 +250,11 @@ async function setThreadPinned(cascadeId) {
 
 async function archiveConversation(cascadeId) {
     const target = await findSidebarTarget();
-    const archived = await evaluate(target, `(()=>{const pill=document.querySelector('[data-testid="convo-pill-${cascadeId}"]'); const row=pill?.closest('[role="button"]'); const menuButton=row?.querySelector('button[aria-haspopup="listbox"]'); if(!menuButton) return false; menuButton.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=[...document.querySelectorAll('[role="option"],button')].find(item=>item.innerText.trim().toLowerCase()==='archive'); if(option){option.click(); return resolve(true)} if(performance.now()-started>700) return resolve(false); setTimeout(check,25)}; check()})})()`);
+    const archived = await evaluate(target, `(()=>{const pill=document.querySelector('[data-testid="convo-pill-${cascadeId}"]'); const row=pill?.closest('[role="button"]'); const menuButton=row?.querySelector('button[aria-haspopup="listbox"]'); if(!menuButton) return false; menuButton.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=[...document.querySelectorAll('[role="option"]')].find(item=>/^(archive|delete conversation)$/i.test(item.innerText.trim())); if(option){option.click(); return resolve(true)} if(performance.now()-started>700) return resolve(false); setTimeout(check,25)}; check()})})()`);
     if (!archived) throw new Error('Conversation archive control is unavailable on desktop');
     return { archived: true, id: cascadeId };
 }
+
 
 const sidebarMenuExpression = (action) => `(()=>{
     const display=document.querySelector('[aria-label="Display Options"]');
