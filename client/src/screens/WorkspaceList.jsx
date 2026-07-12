@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarClock, Clock3, Folder, Filter, Pin, Search, SquarePen } from 'lucide-react';
+import { Archive, CalendarClock, Clock3, Folder, Filter, Pin, Search, SquarePen } from 'lucide-react';
 import { apiUrl } from '../api';
 import { HomeSkeleton } from '../components/LoadingSkeleton';
 
@@ -24,7 +24,6 @@ export default function WorkspaceList() {
   const [pinned, setPinned] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
-  const [chatsExpanded, setChatsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const [displaySelection, setDisplaySelection] = useState(['Project', 'Last Updated', 'No Subtitle']);
@@ -118,11 +117,6 @@ export default function WorkspaceList() {
     });
   };
 
-  const toggleChats = (e) => {
-    e.stopPropagation();
-    setChatsExpanded(expanded => !expanded);
-  };
-
   const togglePin = async (e, threadId) => {
     e.stopPropagation();
     const previous = pinned;
@@ -142,6 +136,19 @@ export default function WorkspaceList() {
       setPinned(data.data);
     } catch (error) {
       setPinned(previous);
+      setDesktopNotice(error.message);
+    }
+  };
+
+  const archiveThread = async (e, threadId) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/conversations/${threadId}`), { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop archive failed');
+      setThreads(current => current.filter(thread => thread.id !== threadId));
+      setPinned(current => current.filter(id => id !== threadId));
+    } catch (error) {
       setDesktopNotice(error.message);
     }
   };
@@ -223,6 +230,9 @@ export default function WorkspaceList() {
                   <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
                   </button>
+                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                    <Archive size={14} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -259,7 +269,7 @@ export default function WorkspaceList() {
           </div>
           {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
           {!flatDisplay && orderedWorkspaces.map(ws => (
-            <div key={ws.id} style={{ marginBottom: '16px' }}>
+            <div key={ws.id} style={{ marginBottom: '8px' }}>
               <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
                 <div className="list-item-icon">
                   <Folder size={18} />
@@ -280,6 +290,9 @@ export default function WorkspaceList() {
                         <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                           <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
                         </button>
+                        <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                          <Archive size={14} />
+                        </button>
                       </div>
                     </div>
                   ))
@@ -295,20 +308,20 @@ export default function WorkspaceList() {
           ))}
         </div>
 
-        {/* Chats folder for unassigned recent conversations */}
+        {/* Recent unassigned conversations */}
         {!flatDisplay && <div className="section">
-          <div className="list-item project-item" onClick={toggleChats} role="button" tabIndex={0} aria-expanded={chatsExpanded} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleChats(e); }}>
-            <div className="list-item-icon"><Folder size={18} /></div>
-            <div className="list-item-content">Chats</div>
-          </div>
-          <div className={`workspace-contents${chatsExpanded ? ' is-expanded' : ''}`}>
+          <div className="section-header">Conversations</div>
+          <div className="conversation-list">
             {looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map(t => (
-              <div key={t.id} className="list-item nested-thread" onClick={() => handleThreadClick(t.id)}>
+              <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
                 <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
                   <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                     <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
+                  </button>
+                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                    <Archive size={14} />
                   </button>
                 </div>
               </div>

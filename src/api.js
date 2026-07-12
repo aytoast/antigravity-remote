@@ -36,6 +36,11 @@ router.put('/pinned-threads/:id', async (req, res) => {
     }
 });
 
+router.delete('/desktop/conversations/:id', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.archiveConversation(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/desktop/status', async (req, res) => {
     const targets = await desktopBridge.listTargets();
     res.json({ success: true, connected: targets.length > 0, targets: targets.map(target => ({ title: target.title, url: target.url })) });

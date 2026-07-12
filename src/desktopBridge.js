@@ -202,6 +202,13 @@ async function setThreadPinned(cascadeId) {
     return { accepted: true };
 }
 
+async function archiveConversation(cascadeId) {
+    const target = await findSidebarTarget();
+    const archived = await evaluate(target, `(()=>{const pill=document.querySelector('[data-testid="convo-pill-${cascadeId}"]'); const row=pill?.closest('[role="button"]'); const menuButton=row?.querySelector('button[aria-haspopup="listbox"]'); if(!menuButton) return false; menuButton.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=[...document.querySelectorAll('[role="option"],button')].find(item=>item.innerText.trim().toLowerCase()==='archive'); if(option){option.click(); return resolve(true)} if(performance.now()-started>700) return resolve(false); setTimeout(check,25)}; check()})})()`);
+    if (!archived) throw new Error('Conversation archive control is unavailable on desktop');
+    return { archived: true, id: cascadeId };
+}
+
 const sidebarMenuExpression = (action) => `(()=>{
     const display=document.querySelector('[aria-label="Display Options"]');
     if(!display) return Promise.resolve({error:'Display options are unavailable'});
@@ -338,4 +345,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
