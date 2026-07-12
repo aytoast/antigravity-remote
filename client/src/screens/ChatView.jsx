@@ -290,7 +290,7 @@ export default function ChatView() {
             </button>
             {projectMenuOpen && <div className="project-picker-menu" role="listbox" aria-label="Select project">
               {projects.map(project => <button key={project.id} type="button" role="option" aria-selected={project.name === selectedProject} onClick={() => handleProjectChange(project)}><Folder size={15} />{project.name}</button>)}
-              <button type="button" role="option" aria-selected={!selectedProject} onClick={() => { setSelectedProject(''); setProjectMenuOpen(false); }}><Folder size={15} />No Project</button>
+              <button type="button" role="option" aria-selected={!selectedProject} onClick={() => handleProjectChange({ name: 'No Project' })}><Folder size={15} />No Project</button>
             </div>}
           </div>}
         </div>
