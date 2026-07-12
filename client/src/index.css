@@ -967,6 +967,45 @@ body {
   cursor: not-allowed;
 }
 
+.disabled-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.disabled-tooltip::after {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 90;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  content: attr(data-tooltip);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.disabled-tooltip:hover::after,
+.disabled-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.composer-submit-tooltip {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+}
+
 .model-picker {
   position: relative;
   min-width: 0;

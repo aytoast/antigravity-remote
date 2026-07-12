@@ -214,6 +214,13 @@ export default function ChatView() {
     if (event.key === 'Enter' && !event.shiftKey) handleSend();
   };
 
+  const submitDisabled = sending || id === 'new' || !input.trim();
+  const submitDisabledReason = sending
+    ? 'Message is sending'
+    : id === 'new'
+      ? 'Create conversation on desktop first'
+      : 'Enter a message to send';
+
   const toggleEvent = (eventId) => {
     setExpandedEvents(previous => {
       const next = new Set(previous);
@@ -301,9 +308,11 @@ export default function ChatView() {
             </React.Fragment>))}
           </div>}
           <div className="composer-footer">
-            <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable" title="Attachments are unavailable">
-              <Plus size={16} strokeWidth={1.8} />
-            </button>
+            <span className="disabled-tooltip" data-tooltip="Attachments are unavailable on mobile" tabIndex={0}>
+              <button className="composer-add" type="button" disabled aria-label="Attachments are unavailable">
+                <Plus size={16} strokeWidth={1.8} />
+              </button>
+            </span>
             {models.length > 0 && <div className="model-picker" ref={modelPickerRef}>
               <button className="model-trigger" type="button" onClick={() => setModelMenuOpen(open => !open)} onKeyDown={(event) => event.key === 'Escape' && setModelMenuOpen(false)} aria-expanded={modelMenuOpen} aria-haspopup="listbox">
                 <span>{selectedModel}</span>
@@ -316,9 +325,13 @@ export default function ChatView() {
               </div>}
             </div>}
           </div>
-          <button className="composer-submit" onClick={handleSend} disabled={sending || id === 'new' || !input.trim()} aria-label={input.trim() ? 'Send message' : 'Voice input unavailable'} title={input.trim() ? 'Send message' : 'Voice input unavailable'}>
-            {input.trim() ? <Send size={16} /> : <Mic size={16} />}
-          </button>
+          {submitDisabled ? <span className="disabled-tooltip composer-submit-tooltip" data-tooltip={submitDisabledReason} tabIndex={0}>
+            <button className="composer-submit" onClick={handleSend} disabled aria-label={submitDisabledReason}>
+              {input.trim() ? <Send size={16} /> : <Mic size={16} />}
+            </button>
+          </span> : <button className="composer-submit" onClick={handleSend} aria-label="Send message" title="Send message">
+            <Send size={16} />
+          </button>}
         </div>
         {bridgeError && <div className="bridge-error" role="status">{bridgeError}</div>}
       </div>

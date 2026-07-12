@@ -41,7 +41,9 @@ export default function ScheduledTaskDetail() {
     <nav className="navbar">
       <button className="back-button" type="button" onClick={() => navigate('/tasks')} aria-label="Back to scheduled tasks"><ChevronLeft size={22} /></button>
       <h1>{task?.name || name}</h1>
-      {task && <button className={`task-toggle detail-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled === null ? undefined : task.enabled} disabled={task.enabled === null} aria-label={task.enabled === null ? `${task.name} state unavailable while desktop is closed` : `${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={toggleTask}><span /></button>}
+      {task && (task.enabled === null ? <span className="disabled-tooltip" data-tooltip="Desktop task state is unavailable while desktop is closed" tabIndex={0}>
+        <button className="task-toggle detail-toggle" type="button" role="switch" disabled aria-label={`${task.name} state unavailable while desktop is closed`}><span /></button>
+      </span> : <button className={`task-toggle detail-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={toggleTask}><span /></button>)}
     </nav>
     <main className="task-detail-content">
       {error && <div className="tasks-error" role="status">{error}</div>}
