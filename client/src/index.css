@@ -1179,6 +1179,7 @@ body {
 .file-navbar {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
 }
 
@@ -1198,7 +1199,7 @@ body {
 .file-content {
   width: min(900px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0 48px;
+  padding: 16px 20px 48px;
 }
 
 .file-markdown,
