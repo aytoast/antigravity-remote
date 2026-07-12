@@ -18,14 +18,23 @@ router.get('/desktop/sidebar-projects', async (req, res) => {
         const byName = new Map(local.map(workspace => [workspace.name.toLowerCase(), workspace]));
         const projects = visible.map((project, index) => {
             const metadata = byName.get(project.name.toLowerCase());
-            return metadata ? { ...metadata, desktopOrder: index } : {
+            return metadata ? { ...metadata, expanded: project.expanded, desktopOrder: index } : {
                 id: `desktop-${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
                 name: project.name,
                 path: null,
+                expanded: project.expanded,
                 desktopOrder: index
             };
         });
         res.json({ success: true, data: projects });
+    } catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.put('/desktop/sidebar-projects/:name', async (req, res) => {
+    if (typeof req.body?.expanded !== 'boolean') return res.status(400).json({ success: false, error: 'expanded is required' });
+    try {
+        const data = await desktopBridge.setSidebarProjectExpanded(req.params.name, req.body.expanded);
+        res.json({ success: true, data });
     } catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 

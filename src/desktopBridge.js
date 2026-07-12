@@ -82,9 +82,24 @@ async function listSidebarProjects() {
     const target = await findSidebarTarget();
     const projects = await evaluate(target, `(()=>[...document.querySelectorAll('[aria-expanded]')]
         .filter(item=>item.tagName==='DIV' && item.className.includes('h-8') && item.querySelector('svg'))
-        .map((item,index)=>({name:(item.innerText||'').trim().split('\\n')[0], order:index}))
+        .map((item,index)=>({name:(item.innerText||'').trim().split('\\n')[0], order:index, expanded:item.getAttribute('aria-expanded')==='true'}))
         .filter(item=>item.name))()`);
     return Array.isArray(projects) ? [...new Map(projects.map(project => [project.name, project])).values()] : [];
+}
+
+async function setSidebarProjectExpanded(name, expanded) {
+    const target = await findSidebarTarget();
+    const result = await evaluate(target, `(()=>{
+        const projectName=${JSON.stringify(name)};
+        const desired=${expanded === true};
+        const item=[...document.querySelectorAll('[aria-expanded]')].find(node=>node.tagName==='DIV' && node.className.includes('h-8') && node.innerText.trim().split('\\n')[0]===projectName);
+        if(!item) return {found:false, expanded:false};
+        if((item.getAttribute('aria-expanded')==='true')!==desired) item.click();
+        return new Promise(resolve=>{const started=performance.now(); const check=()=>{const value=item.getAttribute('aria-expanded')==='true'; if(value===desired||performance.now()-started>600) return resolve({found:true,expanded:value}); setTimeout(check,20)}; check()});
+    })()`);
+    if (!result?.found) throw new Error('Project folder is not visible on desktop');
+    if (result.expanded !== expanded) throw new Error('Desktop did not update project folder');
+    return result;
 }
 
 async function findScheduledTasksTarget() {
@@ -376,4 +391,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, setSidebarProjectExpanded, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

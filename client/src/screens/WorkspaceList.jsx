@@ -32,6 +32,7 @@ export default function WorkspaceList() {
   const scheduledDesiredRef = useRef(null);
   const scheduledServerRef = useRef(null);
   const scheduledSyncRunningRef = useRef(false);
+  const workspaceSyncRef = useRef(new Map());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function WorkspaceList() {
     ]).then(([wsData, pinData]) => {
       if (wsData.success) {
         setWorkspaces(wsData.data);
-        setExpandedWorkspaces(new Set(wsData.data.map(workspace => workspace.id)));
+        setExpandedWorkspaces(new Set(wsData.data.filter(workspace => workspace.expanded).map(workspace => workspace.id)));
       }
       if (pinData.success) setPinned(pinData.data);
     }).catch(err => console.error(err)).finally(() => setLoading(false));
@@ -118,7 +119,7 @@ export default function WorkspaceList() {
 
   const handleThreadClick = (id) => navigate(`/chat/${id}`);
 
-  const toggleWorkspace = (e, workspaceId) => {
+  const toggleWorkspace = async (e, workspaceId, workspaceName) => {
     e.stopPropagation();
     setExpandedWorkspaces(previous => {
       const next = new Set(previous);
@@ -126,6 +127,25 @@ export default function WorkspaceList() {
       else next.add(workspaceId);
       return next;
     });
+    const expanded = !expandedWorkspaces.has(workspaceId);
+    const requestId = (workspaceSyncRef.current.get(workspaceId) || 0) + 1;
+    workspaceSyncRef.current.set(workspaceId, requestId);
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(workspaceName)}`), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Desktop folder sync failed');
+    } catch (error) {
+      if (workspaceSyncRef.current.get(workspaceId) === requestId) {
+        setExpandedWorkspaces(previous => {
+          const next = new Set(previous);
+          if (expanded) next.delete(workspaceId); else next.add(workspaceId);
+          return next;
+        });
+        setDesktopNotice(error.message);
+      }
+    }
   };
 
   const togglePin = async (e, threadId) => {
@@ -281,7 +301,7 @@ export default function WorkspaceList() {
           {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
           {!flatDisplay && orderedWorkspaces.map((ws, index) => (
             <div key={ws.id} className="workspace-section-enter" style={{ marginBottom: '8px', '--stagger': `${index * 35}ms` }}>
-              <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
+              <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id, ws.name)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id, ws.name); }}>
                 <div className="list-item-icon">
                   <Folder size={18} />
                 </div>
