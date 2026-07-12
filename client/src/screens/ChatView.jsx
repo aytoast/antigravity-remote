@@ -24,6 +24,7 @@ export default function ChatView() {
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [threadTitle, setThreadTitle] = useState('Thread');
+  const [desktopConversationId, setDesktopConversationId] = useState('');
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
@@ -46,8 +47,17 @@ export default function ChatView() {
     positionedInitialHistory.current = false;
     userScrolledAway.current = false;
     setModelMenuOpen(false);
+    setDesktopConversationId(id === 'new' ? '' : id);
     if (id === 'new') {
       setLoading(false);
+      setMessages([]);
+      fetch(apiUrl('/api/desktop/new/open'), { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) throw new Error(data.error || 'New Conversation is unavailable on desktop');
+          setDesktopConversationId('new');
+        })
+        .catch(error => setBridgeError(error.message));
       return;
     }
     setLoading(true);
@@ -77,9 +87,11 @@ export default function ChatView() {
   }, []);
 
   useEffect(() => {
-    if (id === 'new') return;
-    fetch(apiUrl(`/api/desktop/${id}/open`), { method: 'POST' })
-      .then(() => fetch(apiUrl(`/api/desktop/${id}/models`)))
+    if (!desktopConversationId) return;
+    const openRequest = desktopConversationId === 'new'
+      ? Promise.resolve()
+      : fetch(apiUrl(`/api/desktop/${desktopConversationId}/open`), { method: 'POST' });
+    openRequest.then(() => fetch(apiUrl(`/api/desktop/${desktopConversationId}/models`)))
       .then(res => res.json())
       .then(data => {
         if (!data.success) return;
@@ -89,7 +101,7 @@ export default function ChatView() {
         if (available.length) setSelectedModel(available.includes(desktopSelected) ? desktopSelected : available[0]);
       })
       .catch(() => {});
-  }, [id]);
+  }, [desktopConversationId]);
 
   useEffect(() => {
     if (!modelMenuOpen) return undefined;
@@ -120,25 +132,28 @@ export default function ChatView() {
   };
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !desktopConversationId) return;
     setSending(true);
     setBridgeError('');
     const prompt = input.trim();
+    const targetId = desktopConversationId;
     setInput('');
     try {
-      const response = await fetch(apiUrl(`/api/desktop/${id}/prompt`), {
+      const response = await fetch(apiUrl(`/api/desktop/${targetId}/prompt`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Desktop prompt failed');
+      const conversationId = data.data?.id || targetId;
+      if (id === 'new' && conversationId !== 'new') setDesktopConversationId(conversationId);
       setMessages(previous => [...previous, { id: `mobile-${Date.now()}`, role: 'user', content: prompt }]);
       let attempts = 0;
       const refresh = async () => {
         attempts += 1;
         try {
-          const history = await fetch(apiUrl(`/api/threads/${id}`)).then(result => result.json());
+          const history = await fetch(apiUrl(`/api/threads/${conversationId}`)).then(result => result.json());
           if (history.success) {
             const cleanMsgs = history.data.map(message => ({
               ...message,
@@ -215,11 +230,11 @@ export default function ChatView() {
     if (event.key === 'Enter' && !event.shiftKey) handleSend();
   };
 
-  const submitDisabled = sending || id === 'new' || !input.trim();
+  const submitDisabled = sending || !desktopConversationId || !input.trim();
   const submitDisabledReason = sending
     ? 'Message is sending'
-    : id === 'new'
-      ? 'Create conversation on desktop first'
+    : !desktopConversationId
+      ? 'Waiting for desktop conversation'
       : 'Enter a message to send';
 
   const toggleEvent = (eventId) => {
@@ -290,7 +305,7 @@ export default function ChatView() {
             }}
             onFocus={keepBottomAnchored}
             onKeyDown={handleComposerKeyDown}
-            disabled={sending || id === 'new'}
+            disabled={sending || !desktopConversationId}
           />
           {visibleSlashCommands.length > 0 && <div className="slash-menu" role="listbox" aria-label="Actions">
             {visibleSlashCommands.map((command, index) => (<React.Fragment key={command.name}>

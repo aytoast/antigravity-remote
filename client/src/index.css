@@ -559,11 +559,13 @@ body {
   border: 0;
   border-radius: 4px;
   background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .thread-action:hover {
   background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
 }
 
 /* Floating Action Button */

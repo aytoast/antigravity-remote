@@ -99,6 +99,16 @@ async function openConversation(cascadeId) {
     throw new Error('Conversation is not visible on desktop');
 }
 
+async function openNewConversation() {
+    const targets = await listTargets(true);
+    for (const target of targets) {
+        const opened = await evaluate(target, `(()=>{const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='New Conversation'); if(!control) return false; control.click(); return true})()`);
+        if (!opened) continue;
+        return { opened: true };
+    }
+    throw new Error('New Conversation is unavailable on desktop');
+}
+
 function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -141,7 +151,19 @@ function sendCommand(socket, id, method, params = {}) {
 }
 
 async function sendPrompt(cascadeId, prompt) {
-    const target = await findTarget(cascadeId);
+    let target;
+    if (cascadeId === 'new') {
+        const targets = await listTargets(true);
+        for (const candidate of targets) {
+            if (await evaluate(candidate, `Boolean(document.querySelector('[aria-label="Message input"]'))`)) {
+                target = candidate;
+                break;
+            }
+        }
+        if (!target) throw new Error('Antigravity message input is unavailable');
+    } else {
+        target = await findTarget(cascadeId);
+    }
     const socket = await openSession(target);
     let nextId = 1;
     try {
@@ -150,9 +172,9 @@ async function sendPrompt(cascadeId, prompt) {
         await sendCommand(socket, nextId++, 'Input.insertText', { text: prompt });
         await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
         await sendCommand(socket, nextId++, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', text: '', unmodifiedText: '', windowsVirtualKeyCode: 13 });
-        const submitted = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `new Promise(resolve=>{const started=performance.now(); const check=()=>{const editor=document.querySelector('[aria-label="Message input"]'); if(!editor || editor.innerText.trim()==='') return resolve(true); if(performance.now()-started>=250) return resolve(false); requestAnimationFrame(check)}; check()})`, awaitPromise: true, returnByValue: true });
-        if (!submitted?.result?.value) throw new Error('Desktop did not submit prompt');
-        return { accepted: true };
+        const submitted = await sendCommand(socket, nextId++, 'Runtime.evaluate', { expression: `new Promise(resolve=>{const started=performance.now(); const check=()=>{const editor=document.querySelector('[aria-label="Message input"]'); const match=location.pathname.match(/\\/c\\/([0-9a-f-]{36})/i); if((!editor || editor.innerText.trim()==='') && (match || ${JSON.stringify(cascadeId)} !== 'new')) return resolve({submitted:true,id:match?.[1]||${JSON.stringify(cascadeId)}}); if(performance.now()-started>=1500) return resolve({submitted:false,id:''}); setTimeout(check,25)}; check()})`, awaitPromise: true, returnByValue: true });
+        if (!submitted?.result?.value?.submitted) throw new Error('Desktop did not submit prompt');
+        return { accepted: true, id: submitted.result.value.id || cascadeId };
     } finally {
         try { socket.close(); } catch {}
     }
@@ -345,4 +367,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

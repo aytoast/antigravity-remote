@@ -35,15 +35,22 @@ export default function WorkspaceList() {
 
   useEffect(() => {
     Promise.all([
-      fetch(apiUrl('/api/workspaces')).then(res => res.json()),
-      fetch(apiUrl('/api/desktop/sidebar-threads')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
-    ]).then(([wsData, threadData, pinData]) => {
+    ]).then(([wsData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
-      if (threadData.success) setThreads(threadData.data);
       if (pinData.success) setPinned(pinData.data);
     }).catch(err => console.error(err)).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetch(apiUrl(`/api/desktop/sidebar-threads${searchQuery.trim() ? `?search=${encodeURIComponent(searchQuery.trim())}` : ''}`))
+        .then(res => res.json())
+        .then(data => { if (data.success) setThreads(data.data); })
+        .catch(() => {});
+    }, searchQuery.trim() ? 180 : 0);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetch(apiUrl('/api/desktop/sidebar-options'))

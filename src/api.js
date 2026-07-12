@@ -1,5 +1,5 @@
 const express = require('express');
-const { getWorkspaces, getRecentThreads, getPinnedThreadIds } = require('./parser');
+const { getWorkspaces, getRecentThreads, getThreadMessages, getPinnedThreadIds } = require('./parser');
 const desktopBridge = require('./desktopBridge');
 const { getSkills } = require('./skills');
 
@@ -56,16 +56,36 @@ router.get('/desktop/sidebar-threads', async (req, res) => {
         const visible = await desktopBridge.listSidebarThreads();
         const localThreads = await getRecentThreads(500, { includeScheduled: true });
         const byId = new Map(localThreads.map(thread => [thread.id, thread]));
-        res.json({ success: true, data: visible.map(item => ({
-            ...(byId.get(item.id) || { id: item.id, workspacePath: null, source: null, isScheduled: false, isSyntheticTask: false, isArchived: false, isPinned: false, lastUpdated: null, messageCount: 0 }),
+        const query = String(req.query.search || '').trim().toLowerCase();
+        const results = [];
+        for (const item of visible) {
+            const thread = byId.get(item.id) || { id: item.id, workspacePath: null, source: null, isScheduled: false, isSyntheticTask: false, isArchived: false, isPinned: false, lastUpdated: null, messageCount: 0 };
+            if (query) {
+                const metadata = `${item.title} ${thread.workspacePath || ''}`.toLowerCase();
+                let matches = metadata.includes(query);
+                if (!matches) {
+                    const messages = await getThreadMessages(item.id);
+                    matches = messages.some(message => `${message.content || ''} ${message.thinking || ''} ${message.detail || ''} ${message.title || ''}`.toLowerCase().includes(query));
+                }
+                if (!matches) continue;
+            }
+            results.push({
+            ...thread,
             title: item.title || byId.get(item.id)?.title || 'Untitled Thread',
             desktopOrder: item.order
-        })) });
+            });
+        }
+        res.json({ success: true, data: results });
     } catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 router.post('/desktop/:id/open', async (req, res) => {
     try { res.json({ success: true, data: await desktopBridge.openConversation(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/desktop/new/open', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.openNewConversation() }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
