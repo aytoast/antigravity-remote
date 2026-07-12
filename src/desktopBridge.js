@@ -78,6 +78,15 @@ async function listSidebarThreads() {
     return Array.isArray(threads) ? threads : [];
 }
 
+async function listSidebarProjects() {
+    const target = await findSidebarTarget();
+    const projects = await evaluate(target, `(()=>[...document.querySelectorAll('[aria-expanded]')]
+        .filter(item=>item.tagName==='DIV' && item.className.includes('h-8') && item.querySelector('svg'))
+        .map((item,index)=>({name:(item.innerText||'').trim().split('\\n')[0], order:index}))
+        .filter(item=>item.name))()`);
+    return Array.isArray(projects) ? [...new Map(projects.map(project => [project.name, project])).values()] : [];
+}
+
 async function findScheduledTasksTarget() {
     const targets = await listTargets(true);
     for (const target of targets) {
@@ -367,4 +376,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, openConversation, openNewConversation, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

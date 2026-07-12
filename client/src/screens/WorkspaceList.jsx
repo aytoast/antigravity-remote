@@ -36,7 +36,7 @@ export default function WorkspaceList() {
 
   useEffect(() => {
     Promise.all([
-      fetch(apiUrl('/api/workspaces')).then(res => res.json()),
+      fetch(apiUrl('/api/desktop/sidebar-projects')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
@@ -73,6 +73,7 @@ export default function WorkspaceList() {
     if (!thread.workspacePath) return null;
     const tp = thread.workspacePath.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
     const ws = workspaces.find(w => {
+      if (!w.path) return false;
       const wp = w.path.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
       return tp === wp || tp.startsWith(wp + '/');
     });
@@ -102,6 +103,7 @@ export default function WorkspaceList() {
   Object.values(projectsMap).forEach(projectThreads => projectThreads.sort(sortThreads));
   looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   const orderedWorkspaces = [...workspaces].sort((a, b) => {
+    if (!displaySelection.includes('Alphabetical (A-Z)') && Number.isFinite(a.desktopOrder) && Number.isFinite(b.desktopOrder)) return a.desktopOrder - b.desktopOrder;
     const aUpdated = projectsMap[a.name]?.[0]?.lastUpdated;
     const bUpdated = projectsMap[b.name]?.[0]?.lastUpdated;
     if (displaySelection.includes('Alphabetical (A-Z)')) return a.name.localeCompare(b.name);
@@ -274,8 +276,8 @@ export default function WorkspaceList() {
             </div>
           </div>
           {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
-          {!flatDisplay && orderedWorkspaces.map(ws => (
-            <div key={ws.id} style={{ marginBottom: '8px' }}>
+          {!flatDisplay && orderedWorkspaces.map((ws, index) => (
+            <div key={ws.id} className="workspace-section-enter" style={{ marginBottom: '8px', '--stagger': `${index * 35}ms` }}>
               <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id); }}>
                 <div className="list-item-icon">
                   <Folder size={18} />
@@ -288,8 +290,8 @@ export default function WorkspaceList() {
                 ) : projectsMap[ws.name].length === 0 ? (
                   <div className="empty-text">No conversations yet</div>
                 ) : (
-                  projectsMap[ws.name].map(t => (
-                    <div key={t.id} className="list-item nested-thread" onClick={() => handleThreadClick(t.id)}>
+                  projectsMap[ws.name].map((t, index) => (
+                    <div key={t.id} className="list-item nested-thread conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
                       <div className="list-item-content">
                         <div className="list-item-title">{t.title}</div>
                       </div>
@@ -308,8 +310,8 @@ export default function WorkspaceList() {
               </div>
             </div>
           ))}
-          {flatDisplay && flatThreads.map(t => (
-            <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
+          {flatDisplay && flatThreads.map((t, index) => (
+            <div key={t.id} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
               <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
               <div className="list-item-right"><ThreadTime thread={t} /></div>
             </div>
@@ -320,8 +322,8 @@ export default function WorkspaceList() {
         {!flatDisplay && <div className="section">
           <div className="section-header">Conversations</div>
           <div className="conversation-list">
-            {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map(t => (
-              <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
+            {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map((t, index) => (
+              <div key={t.id} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
                 <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />

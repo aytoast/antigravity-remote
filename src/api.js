@@ -12,6 +12,23 @@ router.get('/workspaces', (req, res) => {
     res.json({ success: true, data: workspaces });
 });
 
+router.get('/desktop/sidebar-projects', async (req, res) => {
+    try {
+        const [visible, local] = await Promise.all([desktopBridge.listSidebarProjects(), getWorkspaces()]);
+        const byName = new Map(local.map(workspace => [workspace.name.toLowerCase(), workspace]));
+        const projects = visible.map((project, index) => {
+            const metadata = byName.get(project.name.toLowerCase());
+            return metadata ? { ...metadata, desktopOrder: index } : {
+                id: `desktop-${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+                name: project.name,
+                path: null,
+                desktopOrder: index
+            };
+        });
+        res.json({ success: true, data: projects });
+    } catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/skills', (req, res) => {
     res.json({ success: true, data: getSkills() });
 });
