@@ -274,7 +274,7 @@ export default function ChatView() {
                   <span className="timeline-chevron" aria-hidden="true">›</span>
                 </button>
                 <div className={`timeline-event-details${expandedEvents.has(m.id) ? ' is-expanded' : ''}`}>
-                  <div className="timeline-event-detail">{m.detail && <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.detail}</ReactMarkdown>}</div>
+                  <div className="timeline-event-detail">{m.detail && <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url} components={markdownComponents}>{m.detail}</ReactMarkdown>}</div>
                 </div>
               </div>
             ) : (
@@ -288,11 +288,11 @@ export default function ChatView() {
                           <span className="timeline-chevron" aria-hidden="true">›</span>
                         </button>
                         <div className={`timeline-event-details${expandedEvents.has(`${m.id}-thinking`) ? ' is-expanded' : ''}`}>
-                          <div className="timeline-event-detail"><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.thinking}</ReactMarkdown></div>
+                          <div className="timeline-event-detail"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url} components={markdownComponents}>{m.thinking}</ReactMarkdown></div>
                         </div>
                       </div>
                     )}
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url} components={markdownComponents}>{m.content}</ReactMarkdown>
                   </>
                 ) : m.content}
               </div>

@@ -38,7 +38,7 @@ export default function FileView() {
     <main className="file-content">
       {!file && !error && <ChatSkeleton />}
       {error && <div className="bridge-error file-error" role="status">{error}</div>}
-      {file && <article className="file-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content}</ReactMarkdown></article>}
+      {file && <article className="file-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url}>{file.content}</ReactMarkdown></article>}
     </main>
   </div>;
 }
