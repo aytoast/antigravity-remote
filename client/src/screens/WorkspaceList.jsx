@@ -35,6 +35,7 @@ export default function WorkspaceList() {
 
   useEffect(() => {
     Promise.all([
+      fetch(apiUrl('/api/workspaces')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
     ]).then(([wsData, pinData]) => {
       if (wsData.success) setWorkspaces(wsData.data);
