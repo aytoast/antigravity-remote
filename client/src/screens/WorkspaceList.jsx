@@ -21,6 +21,7 @@ const ThreadTime = ({ thread }) => <div className="thread-time">
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
+  const [threadsLoading, setThreadsLoading] = useState(true);
   const [pinned, setPinned] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
@@ -44,11 +45,13 @@ export default function WorkspaceList() {
   }, []);
 
   useEffect(() => {
+    setThreadsLoading(true);
     const timer = window.setTimeout(() => {
       fetch(apiUrl(`/api/desktop/sidebar-threads${searchQuery.trim() ? `?search=${encodeURIComponent(searchQuery.trim())}` : ''}`))
         .then(res => res.json())
         .then(data => { if (data.success) setThreads(data.data); })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setThreadsLoading(false));
     }, searchQuery.trim() ? 180 : 0);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
@@ -280,7 +283,9 @@ export default function WorkspaceList() {
                 <div className="list-item-content">{ws.name}</div>
               </div>
               <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
-                {projectsMap[ws.name].length === 0 ? (
+                {threadsLoading ? (
+                  <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div>
+                ) : projectsMap[ws.name].length === 0 ? (
                   <div className="empty-text">No conversations yet</div>
                 ) : (
                   projectsMap[ws.name].map(t => (
@@ -315,7 +320,7 @@ export default function WorkspaceList() {
         {!flatDisplay && <div className="section">
           <div className="section-header">Conversations</div>
           <div className="conversation-list">
-            {looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map(t => (
+            {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map(t => (
               <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
                 <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
                 <div className="list-item-right">

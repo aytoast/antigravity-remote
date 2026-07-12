@@ -1177,6 +1177,25 @@ body {
   padding-bottom: 8px;
 }
 
+.inline-thread-skeleton {
+  display: grid;
+  gap: 8px;
+  padding: 8px 14px 8px 38px;
+}
+
+.inline-thread-skeleton span {
+  display: block;
+  width: 72%;
+  height: 14px;
+  border-radius: 5px;
+  background: var(--surface-color);
+  animation: skeletonPulse 1.2s ease-in-out infinite alternate;
+}
+
+.inline-thread-skeleton span:last-child {
+  width: 52%;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
