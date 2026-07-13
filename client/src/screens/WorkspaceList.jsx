@@ -37,20 +37,46 @@ export default function WorkspaceList() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    Promise.all([
-      fetch(apiUrl('/api/conversations')).then(res => res.json()),
-      fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
-    ]).then(([conversationData, pinData]) => {
-      if (conversationData.success) {
-        setWorkspaces(conversationData.data.workspaces);
-        setThreads(conversationData.data.threads);
-        setExpandedWorkspaces(new Set(conversationData.data.workspaces.map(workspace => workspace.id)));
+    let active = true;
+    let firstLoad = true;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const [conversationResponse, pinResponse] = await Promise.all([
+          fetch(apiUrl('/api/conversations')),
+          fetch(apiUrl('/api/pinned-threads'))
+        ]);
+        const [conversationData, pinData] = await Promise.all([conversationResponse.json(), pinResponse.json()]);
+        if (!active) return;
+        if (conversationData.success) {
+          setWorkspaces(conversationData.data.workspaces);
+          setThreads(conversationData.data.threads);
+          setExpandedWorkspaces(current => {
+            if (firstLoad) return new Set(conversationData.data.workspaces.map(workspace => workspace.id));
+            const available = new Set(conversationData.data.workspaces.map(workspace => workspace.id));
+            return new Set([...current].filter(id => available.has(id)));
+          });
+        }
+        if (pinData.success) setPinned(pinData.data);
+      } catch (error) {
+        if (firstLoad) console.error(error);
+      } finally {
+        if (active && firstLoad) {
+          setLoading(false);
+          setThreadsLoading(false);
+        }
+        firstLoad = false;
       }
-      if (pinData.success) setPinned(pinData.data);
-    }).catch(err => console.error(err)).finally(() => {
-      setLoading(false);
-      setThreadsLoading(false);
-    });
+    };
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') refresh(); };
+    refresh();
+    const interval = window.setInterval(refresh, 5000);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
