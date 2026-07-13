@@ -538,7 +538,7 @@ body {
 .task-events { padding-top: 14px; border-top: 1px solid var(--border-color); }
 .task-event { padding: 10px 0; }
 .task-event + .task-event { border-top: 1px solid var(--border-color); }
-.task-event > div { font-size: 0.86rem; }
+.task-event > div { font-size: 0.86rem; overflow-wrap: anywhere; word-break: break-word; }
 .task-event small { color: var(--text-secondary); font-size: 0.75rem; }
 .task-detail-skeleton { display: grid; gap: 14px; }
 .task-detail-skeleton span { height: 42px; border-radius: 8px; background: var(--surface-color); animation: skeletonPulse 1.2s ease-in-out infinite alternate; }
