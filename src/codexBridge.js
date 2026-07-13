@@ -1,16 +1,21 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
-const path = require('path');
 
-const command = process.env.CODEX_COMMAND || (process.platform === 'win32'
-    ? path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
-    : 'codex');
+const command = process.env.CODEX_COMMAND || require.resolve('@openai/codex/bin/codex.js');
 let child;
 let nextId = 1;
 let buffer = '';
 let started;
 const pending = new Map();
 const events = new EventEmitter();
+
+function commandInvocation(value = command) {
+    const useNode = value.endsWith('.js');
+    return {
+        executable: useNode ? process.execPath : value,
+        args: useNode ? [value, 'app-server', '--listen', 'stdio://'] : ['app-server', '--listen', 'stdio://']
+    };
+}
 
 function reset(error) {
     for (const { reject } of pending.values()) reject(error);
@@ -56,10 +61,7 @@ async function start() {
     if (started) return started;
 
     started = new Promise((resolve, reject) => {
-        const executable = process.platform === 'win32' && !process.env.CODEX_COMMAND ? process.execPath : command;
-        const args = process.platform === 'win32' && !process.env.CODEX_COMMAND
-            ? [command, 'app-server', '--listen', 'stdio://']
-            : ['app-server', '--listen', 'stdio://'];
+        const { executable, args } = commandInvocation();
         child = spawn(executable, args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true
@@ -169,4 +171,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, events, listModels, listThreads, normalizeContent, normalizeMessages, normalizeThread, readThread, sendPrompt, startThread };
+module.exports = { archiveThread, commandInvocation, events, listModels, listThreads, normalizeContent, normalizeMessages, normalizeThread, readThread, sendPrompt, startThread };

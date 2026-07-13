@@ -1,6 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeMessages, normalizeThread } = require('../src/codexBridge');
+const { commandInvocation, normalizeMessages, normalizeThread } = require('../src/codexBridge');
+
+test('Codex bridge uses repo-pinned App Server', () => {
+    const invocation = commandInvocation();
+    assert.equal(invocation.executable, process.execPath);
+    assert.equal(invocation.args[0], require.resolve('@openai/codex/bin/codex.js'));
+    assert.deepEqual(invocation.args.slice(1), ['app-server', '--listen', 'stdio://']);
+});
 
 test('Codex thread maps to shared conversation shape', () => {
     const thread = normalizeThread({
