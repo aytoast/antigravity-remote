@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../api';
 import { ChatSkeleton } from '../components/LoadingSkeleton';
+import { ProviderBadge } from '../components/ProviderBadge';
 
 const builtinSlashCommands = [
   { name: 'btw', description: 'Ask a quick question without interrupting the main conversation.' },
@@ -282,7 +283,7 @@ export default function ChatView() {
         <div className="chat-heading-wrap">
           <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate(-1)}>
           <ChevronLeft size={24} style={{ marginRight: '8px' }} />
-            <div><h1>{id === 'new' ? 'New Antigravity Conversation' : threadTitle}</h1><span className="provider-badge provider-antigravity">Antigravity</span></div>
+            <div><h1>{id === 'new' ? 'New Antigravity Conversation' : threadTitle}</h1><ProviderBadge provider="antigravity" /></div>
           </div>
         </div>
       </nav>

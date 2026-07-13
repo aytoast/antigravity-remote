@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown, ChevronLeft, ChevronUp, Folder, Send } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, Folder, Send } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../api';
 import { ChatSkeleton } from '../components/LoadingSkeleton';
+import { ProviderBadge } from '../components/ProviderBadge';
 
 export default function CodexChatView() {
   const { id } = useParams();
@@ -87,7 +88,7 @@ export default function CodexChatView() {
 
   return <div className="chat-page">
     <nav className="navbar">
-      <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div><h1>{title}</h1><span className="provider-badge provider-codex"><Bot size={12} />Codex</span></div></div>
+      <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div><h1>{title}</h1><ProviderBadge provider="codex" /></div></div>
     </nav>
     <div ref={scrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }}><div className="chat-container">
       {loading ? <ChatSkeleton /> : messages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}`}>

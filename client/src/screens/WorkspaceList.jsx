@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Archive, CalendarClock, Clock3, Folder, Filter, Pin, Search, SquarePen } from 'lucide-react';
 import { apiUrl } from '../api';
 import { HomeSkeleton } from '../components/LoadingSkeleton';
+import { ProviderBadge } from '../components/ProviderBadge';
 
 // Format date relative (e.g. 1d, 4h)
 const formatRelativeDate = (dateString) => {
@@ -12,8 +13,6 @@ const formatRelativeDate = (dateString) => {
   if (diffHrs < 24) return `${diffHrs}h`;
   return `${Math.floor(diffHrs / 24)}d`;
 };
-
-const ProviderBadge = ({ provider }) => <span className={`provider-badge provider-${provider}`}>{provider === 'codex' ? 'Codex' : 'Antigravity'}</span>;
 
 const ThreadTime = ({ thread }) => <div className="thread-time">
   {thread.isScheduled && <Clock3 size={12} aria-label="Scheduled conversation" />}
@@ -258,7 +257,7 @@ export default function WorkspaceList() {
               <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t)}>
                 <div className="list-item-content">
                   <div className="list-item-title">{t.title}</div>
-                  <div className="list-item-subtitle"><ProviderBadge provider={t.provider || 'antigravity'} />{getWorkspaceForThread(t) || 'global'}</div>
+                  <div className="list-item-subtitle provider-subtitle"><ProviderBadge provider={t.provider || 'antigravity'} compact />{getWorkspaceForThread(t) || 'global'}</div>
                 </div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
@@ -309,7 +308,7 @@ export default function WorkspaceList() {
                 <div className="list-item-icon">
                   <Folder size={18} />
                 </div>
-                <div className="list-item-content">{ws.name}<span className="workspace-providers">{ws.providers.map(provider => <ProviderBadge key={provider} provider={provider} />)}</span></div>
+                <div className="list-item-content">{ws.name}<span className="workspace-providers">{ws.providers.map(provider => <ProviderBadge key={provider} provider={provider} compact />)}</span></div>
               </div>
               <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
                 {threadsLoading ? (
@@ -320,8 +319,7 @@ export default function WorkspaceList() {
                   projectsMap[ws.name].map((t, index) => (
                       <div key={`${t.provider}-${t.id}`} className="list-item nested-thread conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
                       <div className="list-item-content">
-                        <div className="list-item-title">{t.title}</div>
-                        <ProviderBadge provider={t.provider || 'antigravity'} />
+                        <div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div>
                       </div>
                       <div className="list-item-right">
                         <ThreadTime thread={t} />
@@ -340,7 +338,7 @@ export default function WorkspaceList() {
           ))}
           {flatDisplay && flatThreads.map((t, index) => (
             <div key={`${t.provider}-${t.id}`} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
-              <div className="list-item-content"><div className="list-item-title">{t.title}</div><ProviderBadge provider={t.provider || 'antigravity'} /></div>
+              <div className="list-item-content"><div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div></div>
               <div className="list-item-right"><ThreadTime thread={t} /></div>
             </div>
           ))}
@@ -352,7 +350,7 @@ export default function WorkspaceList() {
           <div className="conversation-list">
             {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map((t, index) => (
               <div key={`${t.provider}-${t.id}`} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
-                <div className="list-item-content"><div className="list-item-title">{t.title}</div><ProviderBadge provider={t.provider || 'antigravity'} /></div>
+                <div className="list-item-content"><div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div></div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
                   {t.provider !== 'codex' && <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
