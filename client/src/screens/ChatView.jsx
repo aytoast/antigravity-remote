@@ -284,15 +284,6 @@ export default function ChatView() {
           <ChevronLeft size={24} style={{ marginRight: '8px' }} />
             <h1>{id === 'new' ? 'New Conversation' : threadTitle}</h1>
           </div>
-          {id === 'new' && <div className="project-picker">
-            <button className="project-picker-trigger" type="button" onClick={() => setProjectMenuOpen(open => !open)} aria-expanded={projectMenuOpen} aria-haspopup="listbox">
-              <Folder size={15} /><span>{selectedProject || 'No Project'}</span><ChevronDown size={14} />
-            </button>
-            {projectMenuOpen && <div className="project-picker-menu" role="listbox" aria-label="Select project">
-              {projects.map(project => <button key={project.id} type="button" role="option" aria-selected={project.name === selectedProject} onClick={() => handleProjectChange(project)}><Folder size={15} />{project.name}</button>)}
-              <button type="button" role="option" aria-selected={!selectedProject} onClick={() => handleProjectChange({ name: 'No Project' })}><Folder size={15} />No Project</button>
-            </div>}
-          </div>}
         </div>
       </nav>
       
@@ -334,6 +325,15 @@ export default function ChatView() {
       </div>
 
       <div className="input-area">
+        {id === 'new' && <div className="project-picker">
+          <button className="project-picker-trigger" type="button" onClick={() => setProjectMenuOpen(open => !open)} aria-expanded={projectMenuOpen} aria-haspopup="listbox">
+            <Folder size={15} /><span>{selectedProject || 'No Project'}</span><ChevronDown size={14} />
+          </button>
+          {projectMenuOpen && <div className="project-picker-menu" role="listbox" aria-label="Select project">
+            {projects.map(project => <button key={project.id} type="button" role="option" aria-selected={project.name === selectedProject} onClick={() => handleProjectChange(project)}><Folder size={15} />{project.name}</button>)}
+            <button type="button" role="option" aria-selected={!selectedProject} onClick={() => handleProjectChange({ name: 'No Project' })}><Folder size={15} />No Project</button>
+          </div>}
+        </div>}
         <div className="composer">
           <input
             type="text"

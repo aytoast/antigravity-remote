@@ -87,7 +87,7 @@ body {
   min-width: 0;
 }
 
-.project-picker { position: relative; margin-left: 6px; }
+.project-picker { position: relative; align-self: flex-start; margin: 0 0 4px 6px; }
 .project-picker-trigger {
   display: inline-flex;
   align-items: center;
@@ -106,7 +106,7 @@ body {
 .project-picker-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-picker-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 0;
   z-index: 80;
   min-width: 210px;
