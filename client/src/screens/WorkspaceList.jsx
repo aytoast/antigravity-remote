@@ -315,9 +315,6 @@ export default function WorkspaceList() {
                   </button>
                 </div>}
               </div>
-              <button className="sidebar-icon-button" type="button" onClick={() => navigate('/tasks')} aria-label="Open scheduled tasks" title="Scheduled Tasks">
-                <CalendarClock size={16} />
-              </button>
             </div>
           </div>
           {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
@@ -391,6 +388,9 @@ export default function WorkspaceList() {
           <Search size={21} aria-hidden="true" />
           <input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search conversations" aria-label="Search conversations" />
         </label>
+        <button className="workspace-scheduled-tasks" type="button" onClick={() => navigate('/tasks')} aria-label="Open scheduled tasks" title="Scheduled Tasks">
+          <CalendarClock size={20} aria-hidden="true" />
+        </button>
         <button className="workspace-new-conversation" type="button" onClick={() => navigate('/chat/new')}>
           <SquarePen size={20} aria-hidden="true" />
           <span>New Conversation</span>

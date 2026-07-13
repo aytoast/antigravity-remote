@@ -282,6 +282,7 @@ body {
 }
 
 .workspace-search,
+.workspace-scheduled-tasks,
 .workspace-new-conversation {
   display: flex;
   align-items: center;
@@ -316,6 +317,28 @@ body {
 
 .workspace-search input::placeholder {
   color: var(--text-secondary);
+}
+
+.workspace-scheduled-tasks {
+  flex: 0 0 52px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.workspace-scheduled-tasks:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.workspace-scheduled-tasks:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .workspace-new-conversation {
