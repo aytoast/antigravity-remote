@@ -69,8 +69,11 @@ export default function WorkspaceList() {
       .then(data => {
         if (!data.success) return;
         const selected = data.data.selected;
+        const mobileSelection = selected.includes('Project')
+          ? selected
+          : ['Project', ...selected.filter(option => option !== 'None')];
         scheduledServerRef.current = selected.includes('Scheduled');
-        if (scheduledDesiredRef.current === null) setDisplaySelection(selected);
+        if (scheduledDesiredRef.current === null) setDisplaySelection(mobileSelection);
       })
       .catch(() => {});
   }, []);
