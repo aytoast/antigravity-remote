@@ -15,7 +15,7 @@ const loadConversations = createConversationLoader(async () => {
         getRecentThreads(500, { includeScheduled: true }),
         codexBridge.listThreads({ limit: 500 }).catch(() => [])
     ]);
-    return { antigravityWorkspaces, visibleThreads, localThreads, codexThreads };
+    return { antigravityWorkspaces, codexWorkspaces: codexBridge.listWorkspaces(), visibleThreads, localThreads, codexThreads };
 });
 
 router.get('/conversations', async (req, res) => {

@@ -71,7 +71,7 @@ export default function WorkspaceList() {
 
   // Match thread to workspace using the workspacePath field the backend provides
   const getWorkspaceForThread = (thread) => {
-    if (!thread.workspacePath) return null;
+    if (thread.isProjectless || !thread.workspacePath) return null;
     const tp = thread.workspacePath.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
     const ws = workspaces.find(w => {
       if (!w.path) return false;
@@ -86,7 +86,8 @@ export default function WorkspaceList() {
     (displaySelection.includes('Scheduled') || !thread.isScheduled)
     && (!query || `${thread.title} ${thread.workspacePath || ''} ${thread.provider || ''}`.toLowerCase().includes(query))
   );
-  const pinnedThreads = activeThreads.filter(t => t.provider === 'antigravity' && pinned.includes(t.id));
+  const isThreadPinned = thread => thread.isPinned || (thread.provider === 'antigravity' && pinned.includes(thread.id));
+  const pinnedThreads = activeThreads.filter(isThreadPinned);
   
   // Group threads by workspace using actual workspacePath
   const projectsMap = {};
@@ -94,10 +95,11 @@ export default function WorkspaceList() {
   const looseThreads = [];
 
   activeThreads.forEach(t => {
+    if (isThreadPinned(t)) return;
     const wsName = getWorkspaceForThread(t);
     if (wsName && projectsMap[wsName] !== undefined) {
       projectsMap[wsName].push(t);
-    } else if (!t.workspacePath && !pinned.includes(t.id)) {
+    } else if (t.isProjectless || !t.workspacePath) {
       looseThreads.push(t);
     }
   });
@@ -242,7 +244,7 @@ export default function WorkspaceList() {
   };
 
   const flatDisplay = displaySelection.includes('None');
-  const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
+  const flatThreads = activeThreads.filter(thread => !isThreadPinned(thread)).sort(sortThreads);
 
   return (
     <div className="workspace-list-page">
@@ -260,9 +262,9 @@ export default function WorkspaceList() {
                 </div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
-                  <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
+                  {t.provider !== 'codex' && <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
-                  </button>
+                  </button>}
                   <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                     <Archive size={14} />
                   </button>

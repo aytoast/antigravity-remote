@@ -25,6 +25,33 @@ test('same folder name at different paths stays separate', () => {
     assert.equal(new Set(result.workspaces.map(workspace => normalizeWorkspacePath(workspace.path))).size, 2);
 });
 
+test('Codex saved projects stay visible while projectless tasks stay conversations', () => {
+    const result = buildConversationIndex({
+        codexWorkspaces: [{ name: 'empty', path: 'C:/work/empty', desktopOrder: 0 }],
+        codexThreads: [{
+            id: 'projectless-task',
+            provider: 'codex',
+            title: 'Unassigned task',
+            workspacePath: 'C:/Users/me/Documents/Codex/captured-task',
+            isProjectless: true
+        }, {
+            id: 'removed-project-task',
+            provider: 'codex',
+            title: 'Old project task',
+            workspacePath: 'C:/work/removed'
+        }, {
+            id: 'nested-project-task',
+            provider: 'codex',
+            title: 'Nested project task',
+            workspacePath: 'C:/work/empty/nested-repo'
+        }]
+    });
+
+    assert.deepEqual(result.workspaces.map(workspace => workspace.name), ['empty']);
+    assert.deepEqual(result.threads.map(thread => thread.id), ['projectless-task']);
+    assert.equal(result.threads[0].isProjectless, true);
+});
+
 test('conversation loader coalesces concurrent requests and caches result', async () => {
     let calls = 0;
     let release;
