@@ -84,8 +84,20 @@ body {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
   min-width: 0;
 }
+
+.chat-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-heading-meta h1 { flex: 1; }
+.chat-heading-meta .provider-badge { flex: 0 0 auto; margin-top: 0; }
 
 .project-picker { position: relative; align-self: flex-start; margin: 0 0 4px 6px; }
 .project-picker-trigger {

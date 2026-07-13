@@ -88,7 +88,7 @@ export default function CodexChatView() {
 
   return <div className="chat-page">
     <nav className="navbar">
-      <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div><h1>{title}</h1><ProviderBadge provider="codex" /></div></div>
+      <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div className="chat-heading-meta"><h1>{title}</h1><ProviderBadge provider="codex" /></div></div>
     </nav>
     <div ref={scrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }}><div className="chat-container">
       {loading ? <ChatSkeleton /> : messages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}`}>
