@@ -4,40 +4,23 @@ const desktopBridge = require('./desktopBridge');
 const codexBridge = require('./codexBridge');
 const { getSkills } = require('./skills');
 const { readConversationFile } = require('./files');
+const { createConversationLoader } = require('./conversations');
 
 const router = express.Router();
 
-const normalizeWorkspacePath = value => String(value || '').replace(/^file:\/\//i, '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-const workspaceName = value => String(value || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || 'No Project';
+const loadConversations = createConversationLoader(async () => {
+    const [visibleThreads, antigravityWorkspaces, localThreads, codexThreads] = await Promise.all([
+        desktopBridge.listSidebarThreads().catch(() => []),
+        Promise.resolve(getWorkspaces()),
+        getRecentThreads(500, { includeScheduled: true }),
+        codexBridge.listThreads({ limit: 500 }).catch(() => [])
+    ]);
+    return { antigravityWorkspaces, visibleThreads, localThreads, codexThreads };
+});
 
 router.get('/conversations', async (req, res) => {
-    try {
-        const [visible, local, codexThreads] = await Promise.all([
-            desktopBridge.listSidebarThreads().catch(() => []),
-            getRecentThreads(500, { includeScheduled: true }),
-            codexBridge.listThreads({ limit: 500 }).catch(() => [])
-        ]);
-        const localById = new Map(local.map(thread => [thread.id, thread]));
-        const antigravityThreads = visible.map(item => ({
-            ...(localById.get(item.id) || { id: item.id, workspacePath: null, lastUpdated: null, isScheduled: false }),
-            title: item.title || localById.get(item.id)?.title || 'Untitled Thread',
-            provider: 'antigravity',
-            desktopOrder: item.order
-        }));
-        const workspaces = new Map();
-        const addWorkspace = (path, name, provider) => {
-            const key = normalizeWorkspacePath(path) || `unassigned:${provider}`;
-            if (!workspaces.has(key)) workspaces.set(key, { id: `workspace-${Buffer.from(key).toString('base64url')}`, name: name || workspaceName(path), path: path || null, providers: [] });
-            const workspace = workspaces.get(key);
-            if (!workspace.providers.includes(provider)) workspace.providers.push(provider);
-        };
-        for (const thread of antigravityThreads) if (thread.workspacePath) addWorkspace(thread.workspacePath, workspaceName(thread.workspacePath), 'antigravity');
-        for (const thread of codexThreads) if (thread.workspacePath) addWorkspace(thread.workspacePath, workspaceName(thread.workspacePath), 'codex');
-        res.json({ success: true, data: {
-            workspaces: [...workspaces.values()].sort((a, b) => a.name.localeCompare(b.name)),
-            threads: [...antigravityThreads, ...codexThreads]
-        } });
-    } catch (error) { res.status(503).json({ success: false, error: error.message }); }
+    try { res.json({ success: true, data: await loadConversations() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 // GET /api/workspaces

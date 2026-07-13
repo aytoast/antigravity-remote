@@ -48,20 +48,11 @@ export default function WorkspaceList() {
         setExpandedWorkspaces(new Set(conversationData.data.workspaces.map(workspace => workspace.id)));
       }
       if (pinData.success) setPinned(pinData.data);
-    }).catch(err => console.error(err)).finally(() => setLoading(false));
+    }).catch(err => console.error(err)).finally(() => {
+      setLoading(false);
+      setThreadsLoading(false);
+    });
   }, []);
-
-  useEffect(() => {
-    setThreadsLoading(true);
-    const timer = window.setTimeout(() => {
-      fetch(apiUrl('/api/conversations'))
-        .then(res => res.json())
-        .then(data => { if (data.success) setThreads(data.data.threads); })
-        .catch(() => {})
-        .finally(() => setThreadsLoading(false));
-    }, searchQuery.trim() ? 180 : 0);
-    return () => window.clearTimeout(timer);
-  }, [searchQuery]);
 
   useEffect(() => {
     fetch(apiUrl('/api/desktop/sidebar-options'))
@@ -90,7 +81,11 @@ export default function WorkspaceList() {
     return ws ? ws.name : null;
   };
 
-  const activeThreads = threads.filter(thread => displaySelection.includes('Scheduled') || !thread.isScheduled);
+  const query = searchQuery.trim().toLowerCase();
+  const activeThreads = threads.filter(thread =>
+    (displaySelection.includes('Scheduled') || !thread.isScheduled)
+    && (!query || `${thread.title} ${thread.workspacePath || ''} ${thread.provider || ''}`.toLowerCase().includes(query))
+  );
   const pinnedThreads = activeThreads.filter(t => t.provider === 'antigravity' && pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath

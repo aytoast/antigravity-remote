@@ -114,6 +114,25 @@ function normalizeThread(thread) {
     };
 }
 
+function normalizeContent(content) {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return content == null ? '' : String(content);
+    return content.map(part => {
+        if (typeof part === 'string') return part;
+        if (part?.type === 'localImage') return part.path ? `Attached image: ${part.path}` : 'Attached image';
+        return part?.text || part?.content || '';
+    }).filter(Boolean).join('\n');
+}
+
+function normalizeMessages(thread) {
+    return (thread.turns || []).flatMap(turn => (turn.items || []).flatMap(item => {
+        if (item.type === 'userMessage') return [{ id: item.id, role: 'user', content: normalizeContent(item.content), created_at: item.createdAt }];
+        if (item.type === 'agentMessage') return [{ id: item.id, role: 'ai', content: normalizeContent(item.text || item.content), created_at: item.createdAt }];
+        if (item.type === 'commandExecution') return [{ id: item.id, role: 'event', title: item.command || 'Ran command', detail: item.aggregatedOutput || '', created_at: item.createdAt }];
+        return [];
+    }));
+}
+
 async function listThreads({ limit = 500, cwd, searchTerm } = {}) {
     const result = await request('thread/list', { limit, sortKey: 'updated_at', cwd, searchTerm });
     return (result.data || []).map(normalizeThread);
@@ -122,12 +141,7 @@ async function listThreads({ limit = 500, cwd, searchTerm } = {}) {
 async function readThread(id) {
     const result = await request('thread/read', { threadId: id, includeTurns: true });
     const thread = result.thread;
-    const messages = (thread.turns || []).flatMap(turn => (turn.items || []).flatMap(item => {
-        if (item.type === 'userMessage') return [{ id: item.id, role: 'user', content: item.content || '', created_at: item.createdAt }];
-        if (item.type === 'agentMessage') return [{ id: item.id, role: 'ai', content: item.text || item.content || '', created_at: item.createdAt }];
-        if (item.type === 'commandExecution') return [{ id: item.id, role: 'event', title: item.command || 'Ran command', detail: item.aggregatedOutput || '', created_at: item.createdAt }];
-        return [];
-    }));
+    const messages = normalizeMessages(thread);
     return { thread: normalizeThread(thread), messages };
 }
 
@@ -155,4 +169,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, events, listModels, listThreads, readThread, sendPrompt, startThread };
+module.exports = { archiveThread, events, listModels, listThreads, normalizeContent, normalizeMessages, normalizeThread, readThread, sendPrompt, startThread };
