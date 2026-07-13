@@ -74,8 +74,7 @@ export default function ScheduledTaskDetail() {
         <section className="task-detail-section task-events">
           <h2>Events</h2>
           {task.events.map((event, index) => <div className="task-event" key={`${event.title}-${event.triggeredAt}-${index}`}>
-            <div className="task-event-heading"><span>{event.title}</span>{event.workspace && <small>{event.workspace}</small>}</div>
-            <small>Triggered {formatTriggeredAt(event.triggeredAt)}</small>
+            <div className="task-event-heading"><span>{event.title}</span>{event.workspace && <small>{event.workspace}</small>}<small className="task-event-time">{formatTriggeredAt(event.triggeredAt)}</small></div>
           </div>)}
         </section>
       </>}
