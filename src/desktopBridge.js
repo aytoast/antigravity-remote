@@ -137,17 +137,16 @@ async function selectNewConversationProject(projectName) {
     const targets = await listTargets(true);
     for (const target of targets) {
         const selected = await evaluate(target, `(()=>{
-            const labels=[...document.querySelectorAll('*')].filter(item=>item.offsetParent!==null && item.innerText.trim()==='New Conversation');
-            const label=labels[labels.length-1];
-            const trigger=label?.closest('button,[role="button"]')||label;
+            const trigger=[...document.querySelectorAll('button[aria-haspopup="dialog"]')].find(item=>item.offsetParent!==null && item.innerText.trim()==='New Conversation');
             if(!trigger) return false;
             trigger.click();
-            return new Promise(resolve=>{const started=performance.now(); const check=()=>{const options=[...document.querySelectorAll('*')].filter(item=>item.offsetParent!==null && item.innerText.trim()===${JSON.stringify(projectName)}); const option=options[options.length-1]?.closest('button,[role="menuitem"],[role="option"]')||options[options.length-1]; if(option&&option!==trigger){option.click(); return resolve(true)} if(performance.now()-started>700) return resolve(false); setTimeout(check,20)}; check()});
+            return new Promise(resolve=>{const started=performance.now(); const check=()=>{const options=[...document.querySelectorAll('button,[role="menuitem"],[role="option"]')].filter(item=>item.offsetParent!==null && item!==trigger && item.innerText.trim().toLowerCase().startsWith(${JSON.stringify(projectName.toLowerCase())})); const option=options[options.length-1]; if(option){option.click(); return resolve(true)} if(performance.now()-started>1000) return resolve(false); setTimeout(check,20)}; check()});
         })()`);
         if (selected) return { selected: projectName };
     }
     throw new Error('Requested project is unavailable on desktop');
 }
+
 
 
 
