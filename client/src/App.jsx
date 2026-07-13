@@ -21,6 +21,7 @@ function App() {
         <Route path="/chat/:id" element={<ChatView />} />
         <Route path="/chat/:id/file" element={<FileView />} />
         <Route path="/tasks" element={<ScheduledTasks />} />
+        <Route path="/tasks/:provider/:name" element={<ScheduledTaskDetail />} />
         <Route path="/tasks/:name" element={<ScheduledTaskDetail />} />
       </Routes>
     </Router>

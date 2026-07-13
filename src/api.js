@@ -91,6 +91,22 @@ router.put('/codex/threads/:id/pin', (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/codex/scheduled-tasks', (req, res) => {
+    try { res.json({ success: true, data: codexBridge.listAutomations() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.get('/codex/scheduled-tasks/:id', (req, res) => {
+    try { res.json({ success: true, data: codexBridge.getAutomation(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.put('/codex/scheduled-tasks/:id', (req, res) => {
+    if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ success: false, error: 'enabled is required' });
+    try { res.json({ success: true, data: codexBridge.setAutomationEnabled(req.params.id, req.body.enabled) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/codex/models', async (req, res) => {
     try { res.json({ success: true, data: await codexBridge.listModels() }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

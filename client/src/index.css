@@ -457,7 +457,8 @@ body {
 .task-row:hover { background: var(--surface-hover); }
 
 .task-copy { min-width: 0; }
-.task-copy > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+.task-title-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.task-title-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
 .task-copy small { color: var(--text-secondary); font-size: 0.75rem; }
 
 .task-toggle {

@@ -6,6 +6,7 @@ const path = require('path');
 const command = process.env.CODEX_COMMAND || require.resolve('@openai/codex/bin/codex.js');
 const codexHome = process.env.CODEX_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.codex');
 const desktopStatePath = path.join(codexHome, '.codex-global-state.json');
+const automationsPath = path.join(codexHome, 'automations');
 let child;
 let nextId = 1;
 let buffer = '';
@@ -71,6 +72,86 @@ function setThreadPinned(threadId, pinned) {
     }
     desktopStateCache = { mtimeMs: -1, data: null };
     return { id: threadId, isPinned: getDesktopState().pinnedThreadIds.has(threadId) };
+}
+
+function parseTomlString(value) {
+    if (!value) return '';
+    try { return JSON.parse(value); } catch { return value.replace(/^['"]|['"]$/g, ''); }
+}
+
+function parseAutomationToml(text) {
+    const valueFor = key => text.match(new RegExp(`^${key}\\s*=\\s*(.+)$`, 'm'))?.[1]?.trim() || '';
+    const target = valueFor('target').match(/type\s*=\s*["']([^"']+)["']/)?.[1] || 'projectless';
+    return {
+        id: parseTomlString(valueFor('id')),
+        name: parseTomlString(valueFor('name')),
+        kind: parseTomlString(valueFor('kind')),
+        prompt: parseTomlString(valueFor('prompt')),
+        status: parseTomlString(valueFor('status')),
+        rrule: parseTomlString(valueFor('rrule')),
+        model: parseTomlString(valueFor('model')),
+        executionEnvironment: parseTomlString(valueFor('execution_environment')),
+        target
+    };
+}
+
+function formatAutomationSchedule(rrule) {
+    if (!rrule) return 'Schedule unavailable';
+    const fields = Object.fromEntries(rrule.replace(/^RRULE:/i, '').split(';').map(part => part.split('=')));
+    const frequency = { DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', HOURLY: 'Hourly' }[fields.FREQ] || fields.FREQ || 'Recurring';
+    const hour = fields.BYHOUR ? `${String(fields.BYHOUR).padStart(2, '0')}:${String(fields.BYMINUTE || '0').padStart(2, '0')}` : '';
+    const days = fields.BYDAY?.split(',').map(day => ({ MO: 'Mon', TU: 'Tue', WE: 'Wed', TH: 'Thu', FR: 'Fri', SA: 'Sat', SU: 'Sun' }[day] || day)).join(', ');
+    return [frequency, days, hour].filter(Boolean).join(' · ');
+}
+
+function normalizeAutomation(automation) {
+    return {
+        id: automation.id,
+        name: automation.name || automation.id,
+        provider: 'codex',
+        prompt: automation.prompt || '',
+        schedule: formatAutomationSchedule(automation.rrule),
+        rrule: automation.rrule || '',
+        enabled: automation.status === 'ACTIVE',
+        status: automation.status || 'UNKNOWN',
+        model: automation.model || null,
+        workspace: automation.target === 'projectless' ? 'global' : automation.target,
+        events: []
+    };
+}
+
+function automationFile(id) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Codex automation is unavailable');
+    const directory = path.join(automationsPath, id);
+    const file = path.join(directory, 'automation.toml');
+    if (path.dirname(file) !== directory || !fs.existsSync(file)) throw new Error('Codex automation is unavailable');
+    return file;
+}
+
+function listAutomations() {
+    if (!fs.existsSync(automationsPath)) return [];
+    return fs.readdirSync(automationsPath, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => {
+            try { return normalizeAutomation(parseAutomationToml(fs.readFileSync(automationFile(entry.name), 'utf8'))); }
+            catch { return null; }
+        })
+        .filter(Boolean);
+}
+
+function getAutomation(id) {
+    return normalizeAutomation(parseAutomationToml(fs.readFileSync(automationFile(id), 'utf8')));
+}
+
+function setAutomationEnabled(id, enabled) {
+    const file = automationFile(id);
+    const current = fs.readFileSync(file, 'utf8');
+    const nextStatus = enabled ? 'ACTIVE' : 'PAUSED';
+    const next = /^status\s*=.*$/m.test(current)
+        ? current.replace(/^status\s*=.*$/m, `status = "${nextStatus}"`)
+        : `${current.trimEnd()}\nstatus = "${nextStatus}"\n`;
+    fs.writeFileSync(file, next, 'utf8');
+    return getAutomation(id);
 }
 
 function commandInvocation(value = command) {
@@ -243,4 +324,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, listModels, listThreads, listWorkspaces, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, readThread, sendPrompt, setThreadPinned, startThread, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, startThread, updatePinnedThreadIds };

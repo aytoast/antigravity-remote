@@ -3,6 +3,7 @@ import { ChevronLeft, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { requestApi } from '../api';
 import { TaskToggle } from '../components/TaskToggle';
+import { ProviderBadge } from '../components/ProviderBadge';
 
 export default function ScheduledTasks() {
   const navigate = useNavigate();
@@ -15,7 +16,14 @@ export default function ScheduledTasks() {
     setLoading(true);
     setError('');
     try {
-      setTasks(await requestApi('/api/desktop/scheduled-tasks', undefined, 'Scheduled Tasks is unavailable'));
+      const [antigravityTasks, codexTasks] = await Promise.all([
+        requestApi('/api/desktop/scheduled-tasks', undefined, 'Scheduled Tasks is unavailable'),
+        requestApi('/api/codex/scheduled-tasks', undefined, 'Codex Scheduled Tasks is unavailable')
+      ]);
+      setTasks([
+        ...antigravityTasks.map(task => ({ ...task, id: task.name, provider: 'antigravity' })),
+        ...codexTasks
+      ]);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -28,14 +36,26 @@ export default function ScheduledTasks() {
   const toggleTask = async (task) => {
     if (task.enabled === null) return;
     const previous = tasks;
-    setTasks(current => current.map(item => item.name === task.name ? { ...item, enabled: !item.enabled } : item));
+    setTasks(current => current.map(item => item.provider === task.provider && item.id === task.id ? { ...item, enabled: !item.enabled } : item));
     try {
-      const updatedTasks = await requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`, {
+      const endpoint = task.provider === 'codex'
+        ? `/api/codex/scheduled-tasks/${encodeURIComponent(task.id)}`
+        : `/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`;
+      const updated = await requestApi(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !task.enabled })
       }, 'Task state did not update');
-      setTasks(updatedTasks);
+      if (task.provider === 'codex') {
+        setTasks(current => current.map(item => item.provider === task.provider && item.id === task.id ? updated : item));
+      } else {
+        const updatedByName = new Map(updated.map(item => [item.name, item]));
+        setTasks(current => current.map(item => {
+          if (item.provider !== 'antigravity') return item;
+          const refreshed = updatedByName.get(item.name);
+          return refreshed ? { ...refreshed, id: refreshed.name, provider: 'antigravity' } : item;
+        }));
+      }
     } catch (toggleError) {
       setTasks(previous);
       setError(toggleError.message);
@@ -58,8 +78,8 @@ export default function ScheduledTasks() {
       </label>
       {error && <div className="tasks-error" role="status">{error}</div>}
       {loading ? <div className="tasks-skeleton" aria-busy="true"><span /><span /><span /><span /><span /></div> : <div className="tasks-list">
-        {visibleTasks.map(task => <div className="task-row" key={task.name} role="button" tabIndex={0} onClick={() => navigate(`/tasks/${encodeURIComponent(task.name)}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') navigate(`/tasks/${encodeURIComponent(task.name)}`); }}>
-          <div className="task-copy"><div>{task.name}</div><small>{task.schedule}</small></div>
+        {visibleTasks.map(task => <div className="task-row" key={`${task.provider}-${task.id}`} role="button" tabIndex={0} onClick={() => navigate(`/tasks/${task.provider}/${encodeURIComponent(task.id)}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') navigate(`/tasks/${task.provider}/${encodeURIComponent(task.id)}`); }}>
+          <div className="task-copy"><div className="task-title-line"><ProviderBadge provider={task.provider} compact /><span>{task.name}</span></div><small>{task.schedule}</small></div>
           <TaskToggle task={task} onToggle={event => { event.stopPropagation(); toggleTask(task); }} />
         </div>)}
       </div>}

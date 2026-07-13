@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { commandInvocation, normalizeDesktopState, normalizeMessages, normalizeThread, updatePinnedThreadIds } = require('../src/codexBridge');
+const { commandInvocation, formatAutomationSchedule, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedThreadIds } = require('../src/codexBridge');
 
 test('Codex bridge uses repo-pinned App Server', () => {
     const invocation = commandInvocation();
@@ -42,6 +42,18 @@ test('Codex pin state updates without dropping desktop state', () => {
     assert.deepEqual(unpinned['pinned-thread-ids'], ['new-thread']);
     assert.deepEqual(unpinned.untouched, { value: 1 });
     assert.deepEqual(raw['pinned-thread-ids'], ['existing']);
+});
+
+test('Codex automation metadata maps to scheduled task shape', () => {
+    const automation = parseAutomationToml(`version = 1\nid = "follow-up-monitor"\nname = "Follow-up monitor"\nkind = "cron"\nprompt = "Review recent activity."\nstatus = "ACTIVE"\nrrule = "RRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYDAY=MO,TU,WE,TH,FR"\ntarget = { type = "projectless" }`);
+    const task = normalizeAutomation(automation);
+
+    assert.equal(task.provider, 'codex');
+    assert.equal(task.id, 'follow-up-monitor');
+    assert.equal(task.enabled, true);
+    assert.equal(task.workspace, 'global');
+    assert.equal(task.schedule, 'Weekly · Mon, Tue, Wed, Thu, Fri · 09:00');
+    assert.equal(formatAutomationSchedule(automation.rrule), task.schedule);
 });
 
 test('Codex thread maps to shared conversation shape', () => {

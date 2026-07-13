@@ -3,25 +3,32 @@ import { ChevronLeft, Clock3, Folder } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { requestApi } from '../api';
 import { TaskToggle } from '../components/TaskToggle';
+import { ProviderBadge } from '../components/ProviderBadge';
 
 export default function ScheduledTaskDetail() {
-  const { name } = useParams();
+  const { provider = 'antigravity', name } = useParams();
   const navigate = useNavigate();
   const [task, setTask] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(name)}`, undefined, 'Scheduled task is unavailable')
+    const endpoint = provider === 'codex'
+      ? `/api/codex/scheduled-tasks/${encodeURIComponent(name)}`
+      : `/api/desktop/scheduled-tasks/${encodeURIComponent(name)}`;
+    requestApi(endpoint, undefined, 'Scheduled task is unavailable')
       .then(setTask)
       .catch(loadError => setError(loadError.message));
-  }, [name]);
+  }, [name, provider]);
 
   const toggleTask = async () => {
     if (!task || task.enabled === null) return;
     const previous = task;
     setTask(current => ({ ...current, enabled: !current.enabled }));
     try {
-      const updatedTask = await requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`, {
+      const endpoint = provider === 'codex'
+        ? `/api/codex/scheduled-tasks/${encodeURIComponent(task.id)}`
+        : `/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`;
+      const updatedTask = await requestApi(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !task.enabled })
@@ -37,6 +44,7 @@ export default function ScheduledTaskDetail() {
     <nav className="navbar">
       <button className="back-button" type="button" onClick={() => navigate('/tasks')} aria-label="Back to scheduled tasks"><ChevronLeft size={22} /></button>
       <h1>{task?.name || name}</h1>
+      <ProviderBadge provider={provider} compact />
       {task && <TaskToggle task={task} onToggle={toggleTask} className="detail-toggle" />}
     </nav>
     <main className="task-detail-content">
