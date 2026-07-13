@@ -195,7 +195,7 @@ export default function ChatView() {
     setSelectedModel(model);
     setModelMenuOpen(false);
     try {
-      const response = await fetch(apiUrl(`/api/desktop/${id}/model`), {
+      const response = await fetch(apiUrl(`/api/desktop/${desktopConversationId || id}/model`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model })

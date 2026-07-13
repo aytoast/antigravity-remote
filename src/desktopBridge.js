@@ -247,7 +247,19 @@ async function listModels(cascadeId) {
 }
 
 async function selectModel(cascadeId, model) {
-    const target = await findTarget(cascadeId);
+    let target;
+    try {
+        target = await findTarget(cascadeId);
+    } catch {
+        const targets = await listTargets(true);
+        for (const candidate of targets) {
+            if (await evaluate(candidate, `Boolean(document.querySelector('[aria-label^="Select model"]'))`)) {
+                target = candidate;
+                break;
+            }
+        }
+        if (!target) throw new Error('Antigravity model selector is unavailable');
+    }
     const selected = await evaluate(target, `(()=>{const button=document.querySelector('[aria-label^="Select model"]'); if(!button) return false; const visible=element=>element && element.getBoundingClientRect().width>0 && element.getBoundingClientRect().height>0; const findOption=()=>[...document.querySelectorAll('button,[role="menuitem"],[role="option"]')].filter(visible).find(item=>item.innerText.trim()===${JSON.stringify(model)}); if(!findOption()) button.click(); return new Promise(resolve=>{const started=performance.now(); const check=()=>{const option=findOption(); if(option){option.click(); return resolve(true)} if(performance.now()-started>500) return resolve(false); setTimeout(check,16)}; check()})})()`);
     if (!selected) throw new Error('Requested model is unavailable');
     return { selected: model };
