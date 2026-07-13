@@ -282,7 +282,7 @@ export default function ChatView() {
         <div className="chat-heading-wrap">
           <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => navigate(-1)}>
           <ChevronLeft size={24} style={{ marginRight: '8px' }} />
-            <h1>{id === 'new' ? 'New Conversation' : threadTitle}</h1>
+            <div><h1>{id === 'new' ? 'New Antigravity Conversation' : threadTitle}</h1><span className="provider-badge provider-antigravity">Antigravity</span></div>
           </div>
         </div>
       </nav>

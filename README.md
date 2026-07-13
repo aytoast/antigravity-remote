@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Keep Antigravity running on desktop, then use a phone to open conversations, send prompts, switch models, manage scheduled tasks, and review agent output.
+  Use a phone to work with Antigravity desktop conversations or local Codex tasks.
 </p>
 
 ---
@@ -41,7 +41,8 @@ React/Vite client
 local Node daemon :8787
     │
     ├── CDP → running Antigravity desktop UI
-    ├── local reads → conversation databases and transcripts
+    ├── Codex App Server → local Codex threads and events
+    ├── local reads → Antigravity conversation databases and transcripts
     └── local reads → Gemini sidecar configuration where needed
 ```
 
@@ -62,12 +63,19 @@ The mobile sidebar starts from conversation pills rendered by desktop. Local con
 
 The daemon reads local Antigravity data from the user's Gemini profile. It does not replace desktop state or maintain a second enabled/archive state for scheduled tasks.
 
+### Providers
+
+Every conversation is labeled as **Antigravity** or **Codex**. New conversations begin with an explicit provider choice. Workspace rows merge when both providers use same normalized folder path; each row shows available providers.
+
+Codex tasks run through a local `codex app-server` child process. The daemon reads thread history, starts and resumes tasks, sends prompts, discovers models, and archives tasks through App Server. Codex desktop sidebar state is not synchronized.
+
 ## Requirements
 
 - Windows
 - Node.js 18 or later
 - Google Antigravity running locally
 - Antigravity desktop UI available to CDP
+- Codex CLI logged in locally for Codex conversations
 
 ## Development
 
@@ -103,9 +111,11 @@ Optional daemon variables:
 ANTIGRAVITY_PORT=3000
 PROXY_PORT=8787
 RELAY_WS_URL=wss://relay.antigravity.dev
+CODEX_COMMAND=codex
 ```
 
 `ANTIGRAVITY_PORT` is the local Antigravity web target. `PROXY_PORT` is the daemon's HTTP port. `RELAY_WS_URL` configures relay connection when remote relay mode is enabled.
+`CODEX_COMMAND` overrides Codex executable location when global Codex CLI is not installed in its standard Windows location.
 
 ## Project structure
 

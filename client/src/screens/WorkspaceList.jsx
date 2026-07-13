@@ -13,6 +13,8 @@ const formatRelativeDate = (dateString) => {
   return `${Math.floor(diffHrs / 24)}d`;
 };
 
+const ProviderBadge = ({ provider }) => <span className={`provider-badge provider-${provider}`}>{provider === 'codex' ? 'Codex' : 'Antigravity'}</span>;
+
 const ThreadTime = ({ thread }) => <div className="thread-time">
   {thread.isScheduled && <Clock3 size={12} aria-label="Scheduled conversation" />}
   <span>{formatRelativeDate(thread.lastUpdated)}</span>
@@ -37,12 +39,13 @@ export default function WorkspaceList() {
 
   useEffect(() => {
     Promise.all([
-      fetch(apiUrl('/api/desktop/sidebar-projects')).then(res => res.json()),
+      fetch(apiUrl('/api/conversations')).then(res => res.json()),
       fetch(apiUrl('/api/pinned-threads')).then(res => res.json())
-    ]).then(([wsData, pinData]) => {
-      if (wsData.success) {
-        setWorkspaces(wsData.data);
-        setExpandedWorkspaces(new Set(wsData.data.filter(workspace => workspace.expanded).map(workspace => workspace.id)));
+    ]).then(([conversationData, pinData]) => {
+      if (conversationData.success) {
+        setWorkspaces(conversationData.data.workspaces);
+        setThreads(conversationData.data.threads);
+        setExpandedWorkspaces(new Set(conversationData.data.workspaces.map(workspace => workspace.id)));
       }
       if (pinData.success) setPinned(pinData.data);
     }).catch(err => console.error(err)).finally(() => setLoading(false));
@@ -51,9 +54,9 @@ export default function WorkspaceList() {
   useEffect(() => {
     setThreadsLoading(true);
     const timer = window.setTimeout(() => {
-      fetch(apiUrl(`/api/desktop/sidebar-threads${searchQuery.trim() ? `?search=${encodeURIComponent(searchQuery.trim())}` : ''}`))
+      fetch(apiUrl('/api/conversations'))
         .then(res => res.json())
-        .then(data => { if (data.success) setThreads(data.data); })
+        .then(data => { if (data.success) setThreads(data.data.threads); })
         .catch(() => {})
         .finally(() => setThreadsLoading(false));
     }, searchQuery.trim() ? 180 : 0);
@@ -85,7 +88,7 @@ export default function WorkspaceList() {
   };
 
   const activeThreads = threads.filter(thread => displaySelection.includes('Scheduled') || !thread.isScheduled);
-  const pinnedThreads = activeThreads.filter(t => pinned.includes(t.id));
+  const pinnedThreads = activeThreads.filter(t => t.provider === 'antigravity' && pinned.includes(t.id));
   
   // Group threads by workspace using actual workspacePath
   const projectsMap = {};
@@ -117,7 +120,7 @@ export default function WorkspaceList() {
     return new Date(bUpdated) - new Date(aUpdated);
   });
 
-  const handleThreadClick = (id) => navigate(`/chat/${id}`);
+  const handleThreadClick = (thread) => navigate(`/chat/${thread.provider || 'antigravity'}/${thread.id}`);
 
   const toggleWorkspace = async (e, workspaceId, workspaceName) => {
     e.stopPropagation();
@@ -131,6 +134,7 @@ export default function WorkspaceList() {
     const requestId = (workspaceSyncRef.current.get(workspaceId) || 0) + 1;
     workspaceSyncRef.current.set(workspaceId, requestId);
     try {
+      if (!workspaces.find(workspace => workspace.id === workspaceId)?.providers?.includes('antigravity')) return;
       const response = await fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(workspaceName)}`), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded })
       });
@@ -171,14 +175,14 @@ export default function WorkspaceList() {
     }
   };
 
-  const archiveThread = async (e, threadId) => {
+  const archiveThread = async (e, thread) => {
     e.stopPropagation();
     try {
-      const response = await fetch(apiUrl(`/api/desktop/conversations/${threadId}`), { method: 'DELETE' });
+      const response = await fetch(apiUrl(thread.provider === 'codex' ? `/api/codex/threads/${thread.id}` : `/api/desktop/conversations/${thread.id}`), { method: 'DELETE' });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Desktop archive failed');
-      setThreads(current => current.filter(thread => thread.id !== threadId));
-      setPinned(current => current.filter(id => id !== threadId));
+      setThreads(current => current.filter(item => item.id !== thread.id || item.provider !== thread.provider));
+      if (thread.provider !== 'codex') setPinned(current => current.filter(id => id !== thread.id));
     } catch (error) {
       setDesktopNotice(error.message);
     }
@@ -251,17 +255,17 @@ export default function WorkspaceList() {
           <div className="section">
             <div className="section-header">Pinned Conversations</div>
             {pinnedThreads.map(t => (
-              <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t.id)}>
+              <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t)}>
                 <div className="list-item-content">
                   <div className="list-item-title">{t.title}</div>
-                  <div className="list-item-subtitle">{getWorkspaceForThread(t) || 'global'}</div>
+                  <div className="list-item-subtitle"><ProviderBadge provider={t.provider || 'antigravity'} />{getWorkspaceForThread(t) || 'global'}</div>
                 </div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
                   <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
                   </button>
-                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                     <Archive size={14} />
                   </button>
                 </div>
@@ -305,7 +309,7 @@ export default function WorkspaceList() {
                 <div className="list-item-icon">
                   <Folder size={18} />
                 </div>
-                <div className="list-item-content">{ws.name}</div>
+                <div className="list-item-content">{ws.name}<span className="workspace-providers">{ws.providers.map(provider => <ProviderBadge key={provider} provider={provider} />)}</span></div>
               </div>
               <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
                 {threadsLoading ? (
@@ -314,16 +318,17 @@ export default function WorkspaceList() {
                   <div className="empty-text">No conversations yet</div>
                 ) : (
                   projectsMap[ws.name].map((t, index) => (
-                    <div key={t.id} className="list-item nested-thread conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
+                      <div key={`${t.provider}-${t.id}`} className="list-item nested-thread conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
                       <div className="list-item-content">
                         <div className="list-item-title">{t.title}</div>
+                        <ProviderBadge provider={t.provider || 'antigravity'} />
                       </div>
                       <div className="list-item-right">
                         <ThreadTime thread={t} />
-                        <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                        {t.provider !== 'codex' && <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                           <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                        </button>
-                        <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                        </button>}
+                        <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                           <Archive size={14} />
                         </button>
                       </div>
@@ -334,8 +339,8 @@ export default function WorkspaceList() {
             </div>
           ))}
           {flatDisplay && flatThreads.map((t, index) => (
-            <div key={t.id} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
-              <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
+            <div key={`${t.provider}-${t.id}`} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
+              <div className="list-item-content"><div className="list-item-title">{t.title}</div><ProviderBadge provider={t.provider || 'antigravity'} /></div>
               <div className="list-item-right"><ThreadTime thread={t} /></div>
             </div>
           ))}
@@ -346,14 +351,14 @@ export default function WorkspaceList() {
           <div className="section-header">Conversations</div>
           <div className="conversation-list">
             {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : looseThreads.length === 0 ? <div className="empty-text">No conversations yet</div> : looseThreads.map((t, index) => (
-              <div key={t.id} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t.id)}>
-                <div className="list-item-content"><div className="list-item-title">{t.title}</div></div>
+              <div key={`${t.provider}-${t.id}`} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
+                <div className="list-item-content"><div className="list-item-title">{t.title}</div><ProviderBadge provider={t.provider || 'antigravity'} /></div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
-                  <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                  {t.provider !== 'codex' && <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                     <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                  </button>
-                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t.id)}>
+                  </button>}
+                  <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                     <Archive size={14} />
                   </button>
                 </div>

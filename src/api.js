@@ -1,10 +1,44 @@
 const express = require('express');
 const { getWorkspaces, getRecentThreads, getThreadMessages, getPinnedThreadIds } = require('./parser');
 const desktopBridge = require('./desktopBridge');
+const codexBridge = require('./codexBridge');
 const { getSkills } = require('./skills');
 const { readConversationFile } = require('./files');
 
 const router = express.Router();
+
+const normalizeWorkspacePath = value => String(value || '').replace(/^file:\/\//i, '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+const workspaceName = value => String(value || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || 'No Project';
+
+router.get('/conversations', async (req, res) => {
+    try {
+        const [visible, local, codexThreads] = await Promise.all([
+            desktopBridge.listSidebarThreads().catch(() => []),
+            getRecentThreads(500, { includeScheduled: true }),
+            codexBridge.listThreads({ limit: 500 }).catch(() => [])
+        ]);
+        const localById = new Map(local.map(thread => [thread.id, thread]));
+        const antigravityThreads = visible.map(item => ({
+            ...(localById.get(item.id) || { id: item.id, workspacePath: null, lastUpdated: null, isScheduled: false }),
+            title: item.title || localById.get(item.id)?.title || 'Untitled Thread',
+            provider: 'antigravity',
+            desktopOrder: item.order
+        }));
+        const workspaces = new Map();
+        const addWorkspace = (path, name, provider) => {
+            const key = normalizeWorkspacePath(path) || `unassigned:${provider}`;
+            if (!workspaces.has(key)) workspaces.set(key, { id: `workspace-${Buffer.from(key).toString('base64url')}`, name: name || workspaceName(path), path: path || null, providers: [] });
+            const workspace = workspaces.get(key);
+            if (!workspace.providers.includes(provider)) workspace.providers.push(provider);
+        };
+        for (const thread of antigravityThreads) if (thread.workspacePath) addWorkspace(thread.workspacePath, workspaceName(thread.workspacePath), 'antigravity');
+        for (const thread of codexThreads) if (thread.workspacePath) addWorkspace(thread.workspacePath, workspaceName(thread.workspacePath), 'codex');
+        res.json({ success: true, data: {
+            workspaces: [...workspaces.values()].sort((a, b) => a.name.localeCompare(b.name)),
+            threads: [...antigravityThreads, ...codexThreads]
+        } });
+    } catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
 
 // GET /api/workspaces
 router.get('/workspaces', (req, res) => {
@@ -40,6 +74,37 @@ router.put('/desktop/sidebar-projects/:name', async (req, res) => {
 
 router.get('/skills', (req, res) => {
     res.json({ success: true, data: getSkills() });
+});
+
+router.get('/codex/threads', async (req, res) => {
+    try { res.json({ success: true, data: await codexBridge.listThreads({ cwd: req.query.cwd, searchTerm: req.query.search }) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.get('/codex/threads/:id', async (req, res) => {
+    try { res.json({ success: true, data: await codexBridge.readThread(req.params.id) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/codex/threads', async (req, res) => {
+    try { res.json({ success: true, data: await codexBridge.startThread(req.body || {}) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/codex/threads/:id/prompt', async (req, res) => {
+    if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
+    try { res.json({ success: true, data: await codexBridge.sendPrompt(req.params.id, { ...req.body, prompt: req.body.prompt.trim() }) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.delete('/codex/threads/:id', async (req, res) => {
+    try { await codexBridge.archiveThread(req.params.id); res.json({ success: true }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.get('/codex/models', async (req, res) => {
+    try { res.json({ success: true, data: await codexBridge.listModels() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 router.get('/threads/:id/file', async (req, res) => {
