@@ -243,8 +243,8 @@ export default function WorkspaceList() {
   const flatThreads = activeThreads.filter(thread => !pinned.includes(thread.id)).sort(sortThreads);
 
   return (
-    <div className="workspace-list-page animate-fade-in">
-      <div className="container" style={{ paddingTop: '20px' }}>
+    <div className="workspace-list-page">
+      <div className="container animate-fade-in" style={{ paddingTop: '20px' }}>
         {loading ? <HomeSkeleton /> : <>
         {/* Pinned Section */}
         {pinnedThreads.length > 0 && (
