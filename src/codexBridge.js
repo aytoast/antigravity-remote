@@ -1,5 +1,6 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
+const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,6 +8,7 @@ const command = process.env.CODEX_COMMAND || require.resolve('@openai/codex/bin/
 const codexHome = process.env.CODEX_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '', '.codex');
 const desktopStatePath = path.join(codexHome, '.codex-global-state.json');
 const automationsPath = path.join(codexHome, 'automations');
+const stateDatabasePath = path.join(codexHome, 'state_5.sqlite');
 let child;
 let nextId = 1;
 let buffer = '';
@@ -81,7 +83,9 @@ function parseTomlString(value) {
 
 function parseAutomationToml(text) {
     const valueFor = key => text.match(new RegExp(`^${key}\\s*=\\s*(.+)$`, 'm'))?.[1]?.trim() || '';
-    const target = valueFor('target').match(/type\s*=\s*["']([^"']+)["']/)?.[1] || 'projectless';
+    const targetValue = valueFor('target');
+    const target = targetValue.match(/type\s*=\s*["']([^"']+)["']/)?.[1] || 'projectless';
+    const targetProject = targetValue.match(/project_id\s*=\s*["']([^"']+)["']/)?.[1] || '';
     return {
         id: parseTomlString(valueFor('id')),
         name: parseTomlString(valueFor('name')),
@@ -91,7 +95,8 @@ function parseAutomationToml(text) {
         rrule: parseTomlString(valueFor('rrule')),
         model: parseTomlString(valueFor('model')),
         executionEnvironment: parseTomlString(valueFor('execution_environment')),
-        target
+        target,
+        targetProject
     };
 }
 
@@ -104,7 +109,35 @@ function formatAutomationSchedule(rrule) {
     return [frequency, days, hour].filter(Boolean).join(' · ');
 }
 
+function automationRuns(id, limit = 20) {
+    if (!fs.existsSync(stateDatabasePath)) return [];
+    let database;
+    try {
+        database = new Database(stateDatabasePath, { readonly: true, fileMustExist: true });
+        const rows = database.prepare(`
+            SELECT title, cwd, created_at_ms, updated_at_ms
+            FROM threads
+            WHERE thread_source = 'automation' AND title LIKE ?
+            ORDER BY COALESCE(updated_at_ms, created_at_ms) DESC
+            LIMIT ?
+        `).all(`%Automation ID: ${id}%`, limit);
+        return rows.map(row => {
+            const title = row.title.match(/^Automation:\s*([^\r\n]+)/)?.[1] || id;
+            return {
+                title,
+                triggeredAt: new Date(row.updated_at_ms || row.created_at_ms).toISOString(),
+                workspace: path.basename(String(row.cwd || '').replace(/^\\\\\?\\/, '').replace(/[\\/]+$/, '')) || 'global'
+            };
+        });
+    } catch {
+        return [];
+    } finally {
+        database?.close();
+    }
+}
+
 function normalizeAutomation(automation) {
+    const events = automation.events || automationRuns(automation.id);
     return {
         id: automation.id,
         name: automation.name || automation.id,
@@ -115,8 +148,8 @@ function normalizeAutomation(automation) {
         enabled: automation.status === 'ACTIVE',
         status: automation.status || 'UNKNOWN',
         model: automation.model || null,
-        workspace: automation.target === 'projectless' ? 'global' : automation.target,
-        events: []
+        workspace: automation.workspace || (automation.targetProject ? path.basename(automation.targetProject) : automation.target === 'projectless' ? 'global' : automation.target),
+        events
     };
 }
 
@@ -129,14 +162,45 @@ function automationFile(id) {
 }
 
 function listAutomations() {
-    if (!fs.existsSync(automationsPath)) return [];
-    return fs.readdirSync(automationsPath, { withFileTypes: true })
+    const automations = fs.existsSync(automationsPath) ? fs.readdirSync(automationsPath, { withFileTypes: true })
         .filter(entry => entry.isDirectory())
         .map(entry => {
             try { return normalizeAutomation(parseAutomationToml(fs.readFileSync(automationFile(entry.name), 'utf8'))); }
             catch { return null; }
         })
-        .filter(Boolean);
+        .filter(Boolean) : [];
+    const knownIds = new Set(automations.map(automation => automation.id));
+    for (const run of automationRunIds()) {
+        if (knownIds.has(run.id)) continue;
+        automations.push(normalizeAutomation({
+            id: run.id,
+            name: run.name,
+            status: 'ACTIVE',
+            rrule: /daily/i.test(run.id) ? 'RRULE:FREQ=DAILY' : '',
+            workspace: run.workspace,
+            events: automationRuns(run.id)
+        }));
+    }
+    return automations;
+}
+
+function automationRunIds() {
+    if (!fs.existsSync(stateDatabasePath)) return [];
+    let database;
+    try {
+        database = new Database(stateDatabasePath, { readonly: true, fileMustExist: true });
+        const rows = database.prepare("SELECT title, cwd FROM threads WHERE thread_source = 'automation' AND title LIKE '%Automation ID:%' GROUP BY title, cwd").all();
+        const ids = new Map();
+        for (const row of rows) {
+            const id = row.title.match(/Automation ID:\s*([^\r\n]+)/)?.[1];
+            if (id && !ids.has(id)) ids.set(id, { id, name: row.title.match(/^Automation:\s*([^\r\n]+)/)?.[1] || id, workspace: path.basename(String(row.cwd || '').replace(/^\\\\\?\\/, '').replace(/[\\/]+$/, '')) || 'global' });
+        }
+        return [...ids.values()];
+    } catch {
+        return [];
+    } finally {
+        database?.close();
+    }
 }
 
 function getAutomation(id) {

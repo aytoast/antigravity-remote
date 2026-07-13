@@ -5,6 +5,17 @@ import { requestApi } from '../api';
 import { TaskToggle } from '../components/TaskToggle';
 import { ProviderBadge } from '../components/ProviderBadge';
 
+const formatTriggeredAt = value => {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return value;
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+};
+
 export default function ScheduledTaskDetail() {
   const { provider = 'antigravity', name } = useParams();
   const navigate = useNavigate();
@@ -63,8 +74,8 @@ export default function ScheduledTaskDetail() {
         <section className="task-detail-section task-events">
           <h2>Events</h2>
           {task.events.map((event, index) => <div className="task-event" key={`${event.title}-${event.triggeredAt}-${index}`}>
-            <div>{event.title}</div>
-            <small>Triggered {event.triggeredAt}</small>
+            <div className="task-event-heading"><span>{event.title}</span>{event.workspace && <small>{event.workspace}</small>}</div>
+            <small>Triggered {formatTriggeredAt(event.triggeredAt)}</small>
           </div>)}
         </section>
       </>}
