@@ -638,28 +638,36 @@ body {
   gap: 3px;
   width: fit-content;
   margin-top: 4px;
-  min-height: 18px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-color);
+  min-height: 20px;
+  padding: 2px 6px;
+  border: 1px solid oklch(0.89 0.006 260);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--text-secondary);
+  background: oklch(0.985 0.003 260);
+  box-shadow: 0 1px 2px rgba(6, 10, 18, 0.12);
+  color: oklch(0.25 0.012 260);
   font-size: 0.65rem;
   font-weight: 600;
   line-height: 1.1;
 }
 
 .provider-badge.is-compact {
-  width: 18px;
-  height: 18px;
-  min-height: 18px;
+  width: 20px;
+  height: 16px;
+  min-height: 16px;
   margin-top: 0;
   padding: 0;
 }
 
-.provider-badge.provider-antigravity { border-color: rgba(138, 180, 248, 0.3); color: #9bbcf8; }
-.provider-badge.provider-codex { border-color: rgba(129, 201, 149, 0.3); color: #92d3a5; }
-.workspace-providers { display: inline-flex; gap: 3px; margin-left: 7px; vertical-align: -4px; }
+.provider-logo {
+  display: block;
+  width: 11px;
+  height: 11px;
+  object-fit: contain;
+}
+
+.provider-antigravity .provider-logo { width: 12px; height: 12px; }
+.workspace-providers { display: inline-flex; gap: 0; margin-left: 7px; vertical-align: -3px; }
+.workspace-providers .provider-badge + .provider-badge { margin-left: -4px; }
 
 .back-button { display: inline-flex; padding: 4px; border: 0; background: transparent; color: var(--text-primary); cursor: pointer; }
 .provider-choice { width: min(100% - 32px, 520px); margin: 72px auto; display: grid; gap: 12px; }
