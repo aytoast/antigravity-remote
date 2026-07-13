@@ -536,7 +536,7 @@ body {
 }
 
 .task-events { padding-top: 14px; border-top: 1px solid var(--border-color); }
-.task-event { padding: 10px 12px; }
+.task-event { padding: 10px 0; }
 .task-event + .task-event { border-top: 1px solid var(--border-color); }
 .task-event > div { font-size: 0.86rem; }
 .task-event small { color: var(--text-secondary); font-size: 0.75rem; }
