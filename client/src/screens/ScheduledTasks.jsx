@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { apiUrl } from '../api';
+import { requestApi } from '../api';
+import { TaskToggle } from '../components/TaskToggle';
 
 export default function ScheduledTasks() {
   const navigate = useNavigate();
@@ -14,10 +15,7 @@ export default function ScheduledTasks() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(apiUrl('/api/desktop/scheduled-tasks'));
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Scheduled Tasks is unavailable');
-      setTasks(data.data);
+      setTasks(await requestApi('/api/desktop/scheduled-tasks', undefined, 'Scheduled Tasks is unavailable'));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -32,14 +30,12 @@ export default function ScheduledTasks() {
     const previous = tasks;
     setTasks(current => current.map(item => item.name === task.name ? { ...item, enabled: !item.enabled } : item));
     try {
-      const response = await fetch(apiUrl(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`), {
+      const updatedTasks = await requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !task.enabled })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Task state did not update');
-      setTasks(data.data);
+      }, 'Task state did not update');
+      setTasks(updatedTasks);
     } catch (toggleError) {
       setTasks(previous);
       setError(toggleError.message);
@@ -64,11 +60,7 @@ export default function ScheduledTasks() {
       {loading ? <div className="tasks-skeleton" aria-busy="true"><span /><span /><span /><span /><span /></div> : <div className="tasks-list">
         {visibleTasks.map(task => <div className="task-row" key={task.name} role="button" tabIndex={0} onClick={() => navigate(`/tasks/${encodeURIComponent(task.name)}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') navigate(`/tasks/${encodeURIComponent(task.name)}`); }}>
           <div className="task-copy"><div>{task.name}</div><small>{task.schedule}</small></div>
-          {task.enabled === null ? <span className="disabled-tooltip" data-tooltip="Desktop task state is unavailable while desktop is closed" tabIndex={0}>
-            <button className="task-toggle" type="button" role="switch" disabled aria-label={`${task.name} state unavailable while desktop is closed`}><span /></button>
-          </span> : <button className={`task-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={event => { event.stopPropagation(); toggleTask(task); }}>
-            <span />
-          </button>}
+          <TaskToggle task={task} onToggle={event => { event.stopPropagation(); toggleTask(task); }} />
         </div>)}
       </div>}
     </main>

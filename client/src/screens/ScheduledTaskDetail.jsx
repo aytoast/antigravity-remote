@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, Clock3, Folder } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { apiUrl } from '../api';
+import { requestApi } from '../api';
+import { TaskToggle } from '../components/TaskToggle';
 
 export default function ScheduledTaskDetail() {
   const { name } = useParams();
@@ -10,12 +11,8 @@ export default function ScheduledTaskDetail() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(apiUrl(`/api/desktop/scheduled-tasks/${encodeURIComponent(name)}`))
-      .then(res => res.json())
-      .then(data => {
-        if (!data.success) throw new Error(data.error || 'Scheduled task is unavailable');
-        setTask(data.data);
-      })
+    requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(name)}`, undefined, 'Scheduled task is unavailable')
+      .then(setTask)
       .catch(loadError => setError(loadError.message));
   }, [name]);
 
@@ -24,13 +21,12 @@ export default function ScheduledTaskDetail() {
     const previous = task;
     setTask(current => ({ ...current, enabled: !current.enabled }));
     try {
-      const response = await fetch(apiUrl(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`), {
+      const updatedTask = await requestApi(`/api/desktop/scheduled-tasks/${encodeURIComponent(task.name)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !task.enabled })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Task state did not update');
+      }, 'Task state did not update');
+      setTask(updatedTask);
     } catch (toggleError) {
       setTask(previous);
       setError(toggleError.message);
@@ -41,9 +37,7 @@ export default function ScheduledTaskDetail() {
     <nav className="navbar">
       <button className="back-button" type="button" onClick={() => navigate('/tasks')} aria-label="Back to scheduled tasks"><ChevronLeft size={22} /></button>
       <h1>{task?.name || name}</h1>
-      {task && (task.enabled === null ? <span className="disabled-tooltip" data-tooltip="Desktop task state is unavailable while desktop is closed" tabIndex={0}>
-        <button className="task-toggle detail-toggle" type="button" role="switch" disabled aria-label={`${task.name} state unavailable while desktop is closed`}><span /></button>
-      </span> : <button className={`task-toggle detail-toggle${task.enabled ? ' is-enabled' : ''}`} type="button" role="switch" aria-checked={task.enabled} aria-label={`${task.enabled ? 'Disable' : 'Enable'} ${task.name}`} onClick={toggleTask}><span /></button>)}
+      {task && <TaskToggle task={task} onToggle={toggleTask} className="detail-toggle" />}
     </nav>
     <main className="task-detail-content">
       {error && <div className="tasks-error" role="status">{error}</div>}

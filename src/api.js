@@ -183,7 +183,6 @@ router.get('/workspaces/:id/threads', async (req, res) => {
     const workspaces = getWorkspaces();
     const workspace = workspaces.find(w => w.id === req.params.id);
     if (!workspace) return res.json({ success: true, data: [] });
-    const { getRecentThreads } = require('./parser');
     const all = await getRecentThreads(500);
     const wPath = workspace.path.toLowerCase().replace(/\\/g, '/');
     const scoped = all.filter(t => {
@@ -196,7 +195,6 @@ router.get('/workspaces/:id/threads', async (req, res) => {
 
 // GET /api/threads/:id
 router.get('/threads/:id', async (req, res) => {
-    const { getThreadMessages } = require('./parser');
     const messages = await getThreadMessages(req.params.id);
     const threads = await getRecentThreads(500, { includeScheduled: true });
     const thread = threads.find(item => item.id === req.params.id) || null;
