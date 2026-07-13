@@ -126,7 +126,7 @@ async function openConversation(cascadeId) {
 async function openNewConversation() {
     const targets = await listTargets(true);
     for (const target of targets) {
-        const opened = await evaluate(target, `(()=>{const control=[...document.querySelectorAll('button,[role="button"]')].find(item=>item.innerText.trim()==='New Conversation'); if(!control) return false; control.click(); return true})()`);
+        const opened = await evaluate(target, `(()=>{const controls=[...document.querySelectorAll('button,[role="button"]')].filter(item=>item.offsetParent!==null && item.innerText.trim()==='New Conversation'); const control=controls[controls.length-1]; if(!control) return false; control.click(); return true})()`);
         if (!opened) continue;
         return { opened: true };
     }
@@ -148,6 +148,7 @@ async function selectNewConversationProject(projectName) {
     }
     throw new Error('Requested project is unavailable on desktop');
 }
+
 
 
 function evaluate(target, expression) {
