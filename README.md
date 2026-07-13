@@ -67,7 +67,7 @@ The daemon reads local Antigravity data from the user's Gemini profile. It does 
 
 Every conversation is labeled as **Antigravity** or **Codex**. New conversations begin with an explicit provider choice. Workspace rows merge when both providers use same normalized folder path; each row shows available providers.
 
-Codex tasks run through a local `codex app-server` child process. The daemon reads thread history, starts and resumes tasks, sends prompts, discovers models, and archives tasks through App Server. Codex desktop sidebar state is not synchronized.
+Codex tasks run through a local `codex app-server` child process. The daemon reads thread history, starts and resumes tasks, sends prompts, discovers models, and archives tasks through App Server. Pin actions update Codex desktop sidebar state.
 
 ## Requirements
 

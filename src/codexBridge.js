@@ -56,10 +56,21 @@ function getDesktopState() {
 }
 
 function updatePinnedThreadIds(raw, threadId, pinned) {
-    const pinnedThreadIds = new Set(raw['pinned-thread-ids'] || []);
+    const persistedState = raw['electron-persisted-atom-state'] || {};
+    const pinnedThreadIds = new Set(raw['pinned-thread-ids'] || persistedState['pinned-thread-ids'] || []);
     if (pinned) pinnedThreadIds.add(threadId);
     else pinnedThreadIds.delete(threadId);
-    return { ...raw, 'pinned-thread-ids': [...pinnedThreadIds] };
+    const nextPinnedThreadIds = [...pinnedThreadIds];
+    return {
+        ...raw,
+        'pinned-thread-ids': nextPinnedThreadIds,
+        ...(raw['electron-persisted-atom-state'] ? {
+            'electron-persisted-atom-state': {
+                ...persistedState,
+                'pinned-thread-ids': nextPinnedThreadIds
+            }
+        } : {})
+    };
 }
 
 function setThreadPinned(threadId, pinned) {

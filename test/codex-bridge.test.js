@@ -34,14 +34,29 @@ test('Codex desktop state identifies projects, projectless tasks, and pins', () 
 });
 
 test('Codex pin state updates without dropping desktop state', () => {
-    const raw = { 'pinned-thread-ids': ['existing'], untouched: { value: 1 } };
+    const raw = {
+        'pinned-thread-ids': ['existing'],
+        'electron-persisted-atom-state': { 'pinned-thread-ids': ['existing'] },
+        untouched: { value: 1 }
+    };
     const pinned = updatePinnedThreadIds(raw, 'new-thread', true);
     const unpinned = updatePinnedThreadIds(pinned, 'existing', false);
 
     assert.deepEqual(pinned['pinned-thread-ids'], ['existing', 'new-thread']);
     assert.deepEqual(unpinned['pinned-thread-ids'], ['new-thread']);
+    assert.deepEqual(unpinned['electron-persisted-atom-state']['pinned-thread-ids'], ['new-thread']);
     assert.deepEqual(unpinned.untouched, { value: 1 });
     assert.deepEqual(raw['pinned-thread-ids'], ['existing']);
+    assert.deepEqual(raw['electron-persisted-atom-state']['pinned-thread-ids'], ['existing']);
+});
+
+test('Codex pin state restores top-level state from persisted desktop state', () => {
+    const next = updatePinnedThreadIds({
+        'electron-persisted-atom-state': { 'pinned-thread-ids': ['existing'] }
+    }, 'existing', false);
+
+    assert.deepEqual(next['pinned-thread-ids'], []);
+    assert.deepEqual(next['electron-persisted-atom-state']['pinned-thread-ids'], []);
 });
 
 test('Codex automation metadata maps to scheduled task shape', () => {
