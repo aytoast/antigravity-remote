@@ -541,7 +541,6 @@ body {
 .task-event > div { font-size: 0.86rem; overflow-wrap: anywhere; word-break: break-word; }
 .task-event-heading { display: flex; align-items: baseline; gap: 8px; }
 .task-event-heading small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-event-time { margin-left: auto; }
 .task-event small { color: var(--text-secondary); font-size: 0.75rem; }
 .task-detail-skeleton { display: grid; gap: 14px; }
 .task-detail-skeleton span { height: 42px; border-radius: 8px; background: var(--surface-color); animation: skeletonPulse 1.2s ease-in-out infinite alternate; }
