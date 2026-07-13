@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { commandInvocation, normalizeDesktopState, normalizeMessages, normalizeThread } = require('../src/codexBridge');
+const { commandInvocation, normalizeDesktopState, normalizeMessages, normalizeThread, updatePinnedThreadIds } = require('../src/codexBridge');
 
 test('Codex bridge uses repo-pinned App Server', () => {
     const invocation = commandInvocation();
@@ -31,6 +31,17 @@ test('Codex desktop state identifies projects, projectless tasks, and pins', () 
     assert.equal(normalizeThread({ id: 'pinned-thread' }, state).isPinned, true);
     assert.equal(normalizeThread({ id: 'assigned-thread', cwd: 'C:\\captured' }, state).isProjectless, false);
     assert.equal(normalizeThread({ id: 'assigned-thread', cwd: 'C:\\captured' }, state).workspacePath, 'C:\\work\\repo');
+});
+
+test('Codex pin state updates without dropping desktop state', () => {
+    const raw = { 'pinned-thread-ids': ['existing'], untouched: { value: 1 } };
+    const pinned = updatePinnedThreadIds(raw, 'new-thread', true);
+    const unpinned = updatePinnedThreadIds(pinned, 'existing', false);
+
+    assert.deepEqual(pinned['pinned-thread-ids'], ['existing', 'new-thread']);
+    assert.deepEqual(unpinned['pinned-thread-ids'], ['new-thread']);
+    assert.deepEqual(unpinned.untouched, { value: 1 });
+    assert.deepEqual(raw['pinned-thread-ids'], ['existing']);
 });
 
 test('Codex thread maps to shared conversation shape', () => {

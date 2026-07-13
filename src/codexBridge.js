@@ -52,6 +52,27 @@ function getDesktopState() {
     }
 }
 
+function updatePinnedThreadIds(raw, threadId, pinned) {
+    const pinnedThreadIds = new Set(raw['pinned-thread-ids'] || []);
+    if (pinned) pinnedThreadIds.add(threadId);
+    else pinnedThreadIds.delete(threadId);
+    return { ...raw, 'pinned-thread-ids': [...pinnedThreadIds] };
+}
+
+function setThreadPinned(threadId, pinned) {
+    const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
+    const next = updatePinnedThreadIds(raw, threadId, pinned);
+    const temporaryPath = `${desktopStatePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+        fs.writeFileSync(temporaryPath, JSON.stringify(next), 'utf8');
+        fs.renameSync(temporaryPath, desktopStatePath);
+    } finally {
+        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+    }
+    desktopStateCache = { mtimeMs: -1, data: null };
+    return { id: threadId, isPinned: getDesktopState().pinnedThreadIds.has(threadId) };
+}
+
 function commandInvocation(value = command) {
     const useNode = value.endsWith('.js');
     return {
@@ -222,4 +243,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, listModels, listThreads, listWorkspaces, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, readThread, sendPrompt, startThread };
+module.exports = { archiveThread, commandInvocation, events, listModels, listThreads, listWorkspaces, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, readThread, sendPrompt, setThreadPinned, startThread, updatePinnedThreadIds };

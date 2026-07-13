@@ -85,6 +85,12 @@ router.delete('/codex/threads/:id', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.put('/codex/threads/:id/pin', (req, res) => {
+    if (typeof req.body?.pinned !== 'boolean') return res.status(400).json({ success: false, error: 'pinned is required' });
+    try { res.json({ success: true, data: codexBridge.setThreadPinned(req.params.id, req.body.pinned) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/codex/models', async (req, res) => {
     try { res.json({ success: true, data: await codexBridge.listModels() }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

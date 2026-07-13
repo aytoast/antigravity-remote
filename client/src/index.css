@@ -651,11 +651,12 @@ body {
 }
 
 .provider-badge.is-compact {
-  width: 20px;
-  height: 16px;
-  min-height: 16px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
   margin-top: 0;
   padding: 0;
+  border-radius: 50%;
 }
 
 .provider-logo {

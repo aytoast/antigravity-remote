@@ -151,8 +151,27 @@ export default function WorkspaceList() {
     }
   };
 
-  const togglePin = async (e, threadId) => {
+  const togglePin = async (e, thread) => {
     e.stopPropagation();
+    const threadId = thread.id;
+    if (thread.provider === 'codex') {
+      const shouldPin = !thread.isPinned;
+      setThreads(current => current.map(item => item.provider === 'codex' && item.id === threadId ? { ...item, isPinned: shouldPin } : item));
+      try {
+        const response = await fetch(apiUrl(`/api/codex/threads/${threadId}/pin`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinned: shouldPin })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Codex pin state did not update');
+        setThreads(current => current.map(item => item.provider === 'codex' && item.id === threadId ? { ...item, isPinned: data.data.isPinned } : item));
+      } catch (error) {
+        setThreads(current => current.map(item => item.provider === 'codex' && item.id === threadId ? { ...item, isPinned: thread.isPinned } : item));
+        setDesktopNotice(error.message);
+      }
+      return;
+    }
     const previous = pinned;
     const shouldPin = !pinned.includes(threadId);
     const newPinned = pinned.includes(threadId)
@@ -261,9 +280,9 @@ export default function WorkspaceList() {
                 </div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
-                  {t.provider !== 'codex' && <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t.id)} style={{ color: 'var(--text-primary)' }}>
+                  <button className="thread-action" type="button" title="Unpin conversation" aria-label="Unpin conversation" onClick={(e) => togglePin(e, t)} style={{ color: 'var(--text-primary)' }}>
                     <Pin size={14} fill="currentColor" />
-                  </button>}
+                  </button>
                   <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                     <Archive size={14} />
                   </button>
@@ -323,9 +342,9 @@ export default function WorkspaceList() {
                       </div>
                       <div className="list-item-right">
                         <ThreadTime thread={t} />
-                        {t.provider !== 'codex' && <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                          <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                        </button>}
+                        <button className="thread-action" type="button" title={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} aria-label={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t)} style={{ color: isThreadPinned(t) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                          <Pin size={14} fill={isThreadPinned(t) ? 'currentColor' : 'none'} />
+                        </button>
                         <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                           <Archive size={14} />
                         </button>
@@ -339,7 +358,7 @@ export default function WorkspaceList() {
           {flatDisplay && flatThreads.map((t, index) => (
             <div key={`${t.provider}-${t.id}`} className="list-item thread-item conversation-enter" style={{ '--stagger': `${index * 25}ms` }} onClick={() => handleThreadClick(t)}>
               <div className="list-item-content"><div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div></div>
-              <div className="list-item-right"><ThreadTime thread={t} /></div>
+              <div className="list-item-right"><ThreadTime thread={t} /><button className="thread-action" type="button" title={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} aria-label={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t)}><Pin size={14} fill={isThreadPinned(t) ? 'currentColor' : 'none'} /></button></div>
             </div>
           ))}
         </div>
@@ -353,9 +372,9 @@ export default function WorkspaceList() {
                 <div className="list-item-content"><div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div></div>
                 <div className="list-item-right">
                   <ThreadTime thread={t} />
-                  {t.provider !== 'codex' && <button className="thread-action" type="button" title={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} aria-label={pinned.includes(t.id) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t.id)} style={{ color: pinned.includes(t.id) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                    <Pin size={14} fill={pinned.includes(t.id) ? 'currentColor' : 'none'} />
-                  </button>}
+                  <button className="thread-action" type="button" title={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} aria-label={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t)} style={{ color: isThreadPinned(t) ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    <Pin size={14} fill={isThreadPinned(t) ? 'currentColor' : 'none'} />
+                  </button>
                   <button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}>
                     <Archive size={14} />
                   </button>
