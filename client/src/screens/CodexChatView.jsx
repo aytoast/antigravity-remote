@@ -24,6 +24,8 @@ export default function CodexChatView() {
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const scrollRef = useRef(null);
   const pendingMessagesRef = useRef([]);
+  const modelPickerRef = useRef(null);
+  const inputRef = useRef(null);
 
   const reconcileMessages = (serverMessages, threadId) => {
     const matchedServerMessages = new Set();
@@ -69,6 +71,22 @@ export default function CodexChatView() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+    const inputElement = inputRef.current;
+    if (!inputElement) return;
+    inputElement.style.height = '0px';
+    inputElement.style.height = `${Math.min(inputElement.scrollHeight, 160)}px`;
+  }, [input]);
+
+  useEffect(() => {
+    if (!modelOpen) return undefined;
+    const closeModelMenu = event => {
+      if (!modelPickerRef.current?.contains(event.target)) setModelOpen(false);
+    };
+    document.addEventListener('pointerdown', closeModelMenu);
+    return () => document.removeEventListener('pointerdown', closeModelMenu);
+  }, [modelOpen]);
+
   const send = async () => {
     const prompt = input.trim();
     if (!prompt || sending) return;
@@ -113,7 +131,7 @@ export default function CodexChatView() {
       <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div className="chat-heading-meta"><h1>{title}</h1><ProviderBadge provider="codex" /></div></div>
     </nav>
     <div ref={scrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }}><div className="chat-container">
-      {loading ? <ChatSkeleton /> : messages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}`}>
+      {loading ? <ChatSkeleton /> : messages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}${String(message.id).startsWith('local-') ? ' is-new-message' : ''}`}>
         {message.role === 'ai' ? <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url}>{message.content}</ReactMarkdown> : message.content}
       </div>)}
     </div></div>
@@ -122,8 +140,8 @@ export default function CodexChatView() {
         <button className="project-picker-trigger" type="button" onClick={() => setWorkspaceOpen(open => !open)} aria-expanded={workspaceOpen}><Folder size={15} /><span>{workspace?.name || 'No Project'}</span><ChevronDown size={14} /></button>
         {workspaceOpen && <div className="project-picker-menu" role="listbox">{workspaces.map(item => <button key={item.id} type="button" onClick={() => { setWorkspace(item); setWorkspaceOpen(false); }}><Folder size={15} />{item.name}</button>)}</div>}
       </div>}
-      <div className="composer"><input className="input-box" placeholder="Prompt Codex" value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) send(); }} disabled={sending} />
-        <div className="composer-footer"><div className="model-picker"><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)}><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu">{models.map(item => <button key={item.id} type="button" className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => { setModel(item.id); setModelOpen(false); }}>{item.name}</button>)}</div>}</div></div>
+      <div className="composer"><textarea ref={inputRef} rows={1} className="input-box" placeholder="Prompt Codex" value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} disabled={sending} />
+        <div className="composer-footer"><div className="model-picker" ref={modelPickerRef}><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)} onKeyDown={event => event.key === 'Escape' && setModelOpen(false)} aria-expanded={modelOpen} aria-haspopup="listbox"><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu" role="listbox" aria-label="Select model">{models.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === model} className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => { setModel(item.id); setModelOpen(false); }}>{item.name}</button>)}</div>}</div></div>
         <button className="composer-submit" type="button" onClick={send} disabled={sending || !input.trim()} aria-label="Send prompt"><Send size={16} /></button>
       </div>
       {error && <div className="bridge-error" role="status">{error}</div>}

@@ -49,6 +49,7 @@ export default function ChatView() {
   const [skills, setSkills] = useState([addSourceSkill]);
   const chatScrollRef = useRef(null);
   const modelPickerRef = useRef(null);
+  const inputRef = useRef(null);
   const positionedInitialHistory = useRef(false);
   const userScrolledAway = useRef(false);
   const pendingMessagesRef = useRef([]);
@@ -154,6 +155,13 @@ export default function ChatView() {
     });
     return () => cancelAnimationFrame(frame);
   }, [messages]);
+
+  useEffect(() => {
+    const inputElement = inputRef.current;
+    if (!inputElement) return;
+    inputElement.style.height = '0px';
+    inputElement.style.height = `${Math.min(inputElement.scrollHeight, 160)}px`;
+  }, [input]);
 
   const handleChatScroll = () => {
     const container = chatScrollRef.current;
@@ -274,7 +282,10 @@ export default function ChatView() {
         return;
       }
     }
-    if (event.key === 'Enter' && !event.shiftKey) handleSend();
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
   };
 
   const submitDisabled = sending || !desktopConversationId || !input.trim();
@@ -352,8 +363,9 @@ export default function ChatView() {
           </div>}
         </div>}
         <div className="composer">
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
+            rows={1}
             className="input-box"
             placeholder="Ask anything, @ to mention, / for actions"
             value={input}
