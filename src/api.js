@@ -55,6 +55,16 @@ router.put('/desktop/sidebar-projects/:name', async (req, res) => {
     } catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/codex/sidebar-projects', (req, res) => {
+    res.json({ success: true, data: codexBridge.listWorkspaces() });
+});
+
+router.put('/codex/sidebar-projects', (req, res) => {
+    if (typeof req.body?.path !== 'string' || typeof req.body?.expanded !== 'boolean') return res.status(400).json({ success: false, error: 'path and expanded are required' });
+    try { res.json({ success: true, data: codexBridge.setWorkspaceExpanded(req.body.path, req.body.expanded) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/skills', (req, res) => {
     res.json({ success: true, data: getSkills() });
 });

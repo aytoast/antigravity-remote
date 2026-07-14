@@ -17,6 +17,7 @@ test('Codex desktop state identifies projects, projectless tasks, and pins', () 
         'electron-saved-workspace-roots': ['C:\\work\\repo', 'C:\\work\\empty'],
         'project-order': ['C:\\work\\repo'],
         'pinned-project-ids': ['C:\\work\\repo'],
+        'sidebar-project-expanded-v1-codex:C:\\work\\repo': true,
         'projectless-thread-ids': ['task-thread', 'assigned-thread'],
         'pinned-thread-ids': ['pinned-thread'],
         'thread-project-assignments': {
@@ -26,6 +27,8 @@ test('Codex desktop state identifies projects, projectless tasks, and pins', () 
 
     assert.equal(state.workspaces.length, 2);
     assert.equal(state.workspaces[0].isPinned, true);
+    assert.equal(state.workspaces[0].expanded, true);
+    assert.equal(state.workspaces[1].expanded, false);
     assert.equal(state.workspaces[1].desktopOrder, 2);
     assert.equal(normalizeThread({ id: 'task-thread' }, state).isProjectless, true);
     assert.equal(normalizeThread({ id: 'pinned-thread' }, state).isPinned, true);

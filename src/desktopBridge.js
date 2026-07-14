@@ -65,10 +65,14 @@ async function findTarget(cascadeId) {
 
 async function findSidebarTarget() {
     const targets = await listTargets();
-    for (const target of targets) {
-        const hasSidebar = await evaluate(target, `Boolean(document.querySelector('[aria-label="Display Options"]'))`);
-        if (hasSidebar) return target;
-    }
+    const namedTarget = targets.find(target => target.title === 'Antigravity');
+    if (namedTarget) return namedTarget;
+    const matches = await Promise.all(targets.map(async target => {
+        try { return await evaluate(target, `Boolean(document.querySelector('[aria-label="Display Options"]'))`) ? target : null; }
+        catch { return null; }
+    }));
+    const target = matches.find(Boolean);
+    if (target) return target;
     throw new Error('Antigravity sidebar is not open on desktop');
 }
 
@@ -157,7 +161,9 @@ function evaluate(target, expression) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocket(target.webSocketDebuggerUrl);
         const id = 1;
-        const close = () => { try { socket.close(); } catch {} };
+        let timer;
+        const close = () => { if (timer) clearTimeout(timer); try { socket.close(); } catch {} };
+        timer = setTimeout(() => { close(); reject(new Error('CDP evaluation timeout')); }, 5000);
         socket.on('open', () => socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } })));
         socket.on('message', payload => {
             const message = JSON.parse(payload.toString());

@@ -40,6 +40,7 @@ function normalizeDesktopState(raw = {}) {
                 id: `codex-workspace-${Buffer.from(workspacePath.toLowerCase()).toString('base64url')}`,
                 name: path.basename(workspacePath),
                 path: workspacePath,
+                expanded: Boolean(state[`sidebar-project-expanded-v1-codex:${workspacePath}`]),
                 desktopOrder: orderedIndex >= 0 ? orderedIndex : projectOrder.length + index,
                 isPinned: pinnedProjects.has(workspacePath)
             };
@@ -390,6 +391,50 @@ function setWorkspacePinned(workspacePath, pinned) {
     return { path: workspacePath, isPinned: getDesktopState().workspaces.some(workspace => workspace.path === workspacePath && workspace.isPinned) };
 }
 
+function setWorkspaceExpanded(workspacePath, expanded) {
+    const currentWorkspace = getDesktopState().workspaces.find(workspace => workspace.path.toLowerCase() === workspacePath.toLowerCase());
+    if (currentWorkspace?.expanded === expanded) return { path: workspacePath, expanded, live: true };
+    const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
+    const persistedState = raw['electron-persisted-atom-state'] || {};
+    const key = `sidebar-project-expanded-v1-codex:${workspacePath}`;
+    const next = {
+        ...raw,
+        [key]: expanded,
+        ...(raw['electron-persisted-atom-state'] ? {
+            'electron-persisted-atom-state': { ...persistedState, [key]: expanded }
+        } : {})
+    };
+    const temporaryPath = `${desktopStatePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+        fs.writeFileSync(temporaryPath, JSON.stringify(next), 'utf8');
+        fs.renameSync(temporaryPath, desktopStatePath);
+    } finally {
+        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+    }
+    desktopStateCache = { mtimeMs: -1, data: null };
+
+    let live = false;
+    if (process.platform === 'win32') {
+        const projectName = path.basename(workspacePath).replace(/'/g, "''");
+        const script = [
+            desktopUiSetup,
+            `$target = '${projectName}'`,
+            `$desired = $${expanded ? 'true' : 'false'}`,
+            '$listType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)',
+            '$targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target)',
+            '$project = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName)))',
+            "if (-not $project) { Write-Output 'persisted'; exit 0 }",
+            '$rect = $project.Current.BoundingRectangle; $current = $rect.Height -gt 45',
+            '$buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
+            '$button = $project.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $targetName)))',
+            'if ($current -ne $desired -and $button) { $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 150 }',
+            "Write-Output 'live'"
+        ].join('\n');
+        try { live = runDesktopUiScript(script, { timeout: 2500, operation: 'set-project-expanded' }) === 'live'; } catch {}
+    }
+    return { path: workspacePath, expanded, live };
+}
+
 function parseTomlString(value) {
     if (!value) return '';
     try { return JSON.parse(value); } catch { return value.replace(/^['"]|['"]$/g, ''); }
@@ -722,4 +767,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getDesktopThreadTitle, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, openDesktopThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getDesktopThreadTitle, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, openDesktopThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspaceExpanded, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };

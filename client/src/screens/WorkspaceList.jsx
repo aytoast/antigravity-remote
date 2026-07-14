@@ -31,6 +31,8 @@ const persistPendingWorkspaceSync = pending => {
   window.localStorage.setItem(pendingWorkspaceSyncKey, JSON.stringify([...pending.entries()]));
 };
 
+const workspaceKey = workspace => (workspace.path || workspace.name || '').toLowerCase().replace(/\\/g, '/').replace(/^\/\/\?\//, '').replace(/\/+$/, '');
+
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
@@ -47,15 +49,31 @@ export default function WorkspaceList() {
   const scheduledServerRef = useRef(null);
   const scheduledSyncRunningRef = useRef(false);
   const workspaceSyncRef = useRef(new Map(readStoredArray(pendingWorkspaceSyncKey)));
+  const workspaceSyncRunningRef = useRef(new Set());
+  const expandedWorkspacesRef = useRef(expandedWorkspaces);
+  const desktopExpansionRef = useRef({ initialized: false, antigravity: new Map(), codex: new Map() });
+  const desktopExpansionPollRunningRef = useRef(false);
   const navigate = useNavigate();
 
   const syncWorkspaceExpansion = async (workspaceId, pending) => {
+    if (workspaceSyncRunningRef.current.has(workspaceId)) return;
+    workspaceSyncRunningRef.current.add(workspaceId);
     try {
-      const response = await fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(pending.name)}`), {
+      const providers = pending.providers || ['antigravity'];
+      const operations = [];
+      if (providers.includes('codex') && pending.path) operations.push(fetch(apiUrl('/api/codex/sidebar-projects'), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pending.path, expanded: pending.expanded })
+      }).then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Codex folder sync failed');
+      }));
+      if (providers.includes('antigravity')) operations.push(fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(pending.name)}`), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded: pending.expanded })
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop folder sync failed');
+      }).then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Antigravity folder sync failed');
+      }));
+      await Promise.all(operations);
       if (workspaceSyncRef.current.get(workspaceId)?.requestId === pending.requestId) {
         workspaceSyncRef.current.delete(workspaceId);
         persistPendingWorkspaceSync(workspaceSyncRef.current);
@@ -63,10 +81,13 @@ export default function WorkspaceList() {
       }
     } catch {
       if (workspaceSyncRef.current.get(workspaceId)?.requestId === pending.requestId) setDesktopNotice('Desktop sync pending');
+    } finally {
+      workspaceSyncRunningRef.current.delete(workspaceId);
     }
   };
 
   useEffect(() => {
+    expandedWorkspacesRef.current = expandedWorkspaces;
     window.localStorage.setItem(expandedWorkspacesKey, JSON.stringify([...expandedWorkspaces]));
   }, [expandedWorkspaces]);
 
@@ -76,6 +97,73 @@ export default function WorkspaceList() {
     const interval = window.setInterval(flush, 3000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (workspaces.length === 0) return undefined;
+    let active = true;
+    const pollDesktopExpansion = async () => {
+      if (desktopExpansionPollRunningRef.current) return;
+      desktopExpansionPollRunningRef.current = true;
+      try {
+      const [antigravityResult, codexResult] = await Promise.allSettled([
+        fetch(apiUrl('/api/desktop/sidebar-projects')).then(response => response.json()),
+        fetch(apiUrl('/api/codex/sidebar-projects')).then(response => response.json())
+      ]);
+      if (!active) return;
+      const antigravityProjects = antigravityResult.status === 'fulfilled' && antigravityResult.value.success ? antigravityResult.value.data : [];
+      const codexProjects = codexResult.status === 'fulfilled' && codexResult.value.success ? codexResult.value.data : [];
+      const current = {
+        antigravity: new Map(antigravityProjects.map(project => [workspaceKey(project), project.expanded])),
+        codex: new Map(codexProjects.map(project => [workspaceKey(project), project.expanded]))
+      };
+      const previous = desktopExpansionRef.current;
+      const changes = [];
+      for (const workspace of workspaces) {
+        if (workspaceSyncRef.current.has(workspace.id)) continue;
+        const key = workspaceKey(workspace);
+        const providerValues = workspace.providers.map(provider => current[provider]?.get(key)).filter(value => typeof value === 'boolean');
+        let desired;
+        if (!previous.initialized) {
+          desired = expandedWorkspacesRef.current.has(workspace.id) || providerValues.includes(true);
+        } else {
+          const changedValues = workspace.providers.flatMap(provider => {
+            const before = previous[provider]?.get(key);
+            const after = current[provider]?.get(key);
+            return typeof before === 'boolean' && typeof after === 'boolean' && before !== after ? [after] : [];
+          });
+          if (changedValues.length > 0) desired = changedValues.includes(true);
+        }
+        if (typeof desired !== 'boolean') continue;
+        if (desired !== expandedWorkspacesRef.current.has(workspace.id)) {
+          setExpandedWorkspaces(existing => {
+            const next = new Set(existing);
+            if (desired) next.add(workspace.id); else next.delete(workspace.id);
+            return next;
+          });
+        }
+        if (providerValues.some(value => value !== desired)) changes.push({ workspace, desired });
+      }
+      desktopExpansionRef.current = { initialized: true, ...current };
+      for (const { workspace, desired } of changes) {
+        const pending = {
+          requestId: (workspaceSyncRef.current.get(workspace.id)?.requestId || 0) + 1,
+          name: workspace.name,
+          path: workspace.path,
+          providers: workspace.providers,
+          expanded: desired
+        };
+        workspaceSyncRef.current.set(workspace.id, pending);
+        persistPendingWorkspaceSync(workspaceSyncRef.current);
+        syncWorkspaceExpansion(workspace.id, pending);
+      }
+      } finally {
+        desktopExpansionPollRunningRef.current = false;
+      }
+    };
+    pollDesktopExpansion();
+    const interval = window.setInterval(pollDesktopExpansion, 3000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [workspaces]);
 
   useEffect(() => {
     let active = true;
@@ -198,9 +286,10 @@ export default function WorkspaceList() {
       return next;
     });
     const expanded = !expandedWorkspaces.has(workspaceId);
-    if (!workspaces.find(workspace => workspace.id === workspaceId)?.providers?.includes('antigravity')) return;
+    const workspace = workspaces.find(item => item.id === workspaceId);
+    if (!workspace) return;
     const requestId = (workspaceSyncRef.current.get(workspaceId)?.requestId || 0) + 1;
-    const pending = { requestId, name: workspaceName, expanded };
+    const pending = { requestId, name: workspaceName, path: workspace.path, providers: workspace.providers, expanded };
     workspaceSyncRef.current.set(workspaceId, pending);
     persistPendingWorkspaceSync(workspaceSyncRef.current);
     await syncWorkspaceExpansion(workspaceId, pending);
