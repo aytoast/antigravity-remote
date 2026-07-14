@@ -95,6 +95,11 @@ export default function CodexChatView() {
   }, [id]);
 
   useEffect(() => {
+    if (id === 'new') return;
+    fetch(apiUrl(`/api/codex/desktop/threads/${id}/open`), { method: 'POST' }).catch(() => {});
+  }, [id]);
+
+  useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, queuedPrompts]);
 
@@ -154,7 +159,7 @@ export default function CodexChatView() {
       }
       const response = id === 'new'
         ? await fetch(apiUrl(`/api/codex/threads/${threadId}/prompt`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, cwd: workspace?.path, model }) })
-        : await fetch(apiUrl('/api/codex/desktop/prompt'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+        : await fetch(apiUrl(`/api/codex/desktop/threads/${threadId}/prompt`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Codex prompt failed');
       setIsTurnActive(true);

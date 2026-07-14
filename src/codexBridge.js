@@ -216,6 +216,38 @@ function stopDesktopTurn() {
     return { stopped: true };
 }
 
+function getDesktopThreadTitle(threadId) {
+    if (!fs.existsSync(stateDatabasePath)) return null;
+    let database;
+    try {
+        database = new Database(stateDatabasePath, { readonly: true, fileMustExist: true });
+        return database.prepare('SELECT title FROM threads WHERE id = ?').get(threadId)?.title || null;
+    } catch {
+        return null;
+    } finally {
+        database?.close();
+    }
+}
+
+function openDesktopThread(threadId) {
+    const title = getDesktopThreadTitle(threadId);
+    if (!title) throw new Error('Codex Desktop task is unavailable');
+    const script = [
+        desktopUiSetup,
+        `$target = '${title.replace(/'/g, "''")}'`,
+        '$task = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem -and $element.Current.Name -eq $target) { $task = $element; break } }',
+        "if (-not $task) { throw 'Codex Desktop task is not visible' }",
+        '$task.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView(); Start-Sleep -Milliseconds 60',
+        '$rect = $task.Current.BoundingRectangle',
+        '[CodexDesktopInput]::SetForegroundWindow($process.MainWindowHandle) | Out-Null',
+        '[CodexDesktopInput]::SetCursorPos([int]($rect.Left + [Math]::Min(100, $rect.Width / 2)), [int]($rect.Top + $rect.Height / 2)) | Out-Null',
+        '[CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
+        "Write-Output 'opened'"
+    ].join('\n');
+    if (runDesktopUiScript(script) !== 'opened') throw new Error('Codex Desktop did not open task');
+    return { opened: true, id: threadId };
+}
+
 function getDesktopThreadModel(threadId) {
     const visibleModel = getVisibleDesktopModel();
     if (visibleModel) return visibleModel;
@@ -634,4 +666,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getDesktopThreadTitle, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, openDesktopThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };
