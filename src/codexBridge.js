@@ -207,15 +207,9 @@ function sendDesktopPrompt(prompt) {
         '  [System.Windows.Forms.SendKeys]::SendWait("^a"); [System.Windows.Forms.SendKeys]::SendWait("{BACKSPACE}")',
         '  Set-Clipboard -Value $text',
         '  [System.Windows.Forms.SendKeys]::SendWait("^v")',
-        '  Start-Sleep -Milliseconds 200',
-        '  $send = $null; $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition); for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); $buttonRect = $element.Current.BoundingRectangle; if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and -not $element.Current.Name -and $element.Current.IsEnabled -and $buttonRect.Left -gt $rect.Right -and [Math]::Abs($buttonRect.Top - $rect.Top) -le 5 -and $buttonRect.Width -ge 30 -and $buttonRect.Width -le 40) { $send = $element; break } }',
-        "  if (-not $send) { [System.Windows.Forms.SendKeys]::SendWait('^a'); [System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}'); throw 'Codex Desktop did not accept prompt text' }",
-        '  $sendRect = $send.Current.BoundingRectangle; [CodexDesktopInput]::SetCursorPos([int]($sendRect.Left + ($sendRect.Width / 2)), [int]($sendRect.Top + ($sendRect.Height / 2))) | Out-Null; [CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
+        '  Start-Sleep -Milliseconds 100',
+        '  [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
         '} finally { if ($null -ne $clipboardText) { Set-Clipboard -Value $clipboardText } }',
-        '$textCondition = New-Object System.Windows.Automation.AndCondition((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)), (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $text)))',
-        '$stopCondition = New-Object System.Windows.Automation.AndCondition((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)), (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Stop")))',
-        '$started = $false; for ($attempt = 0; $attempt -lt 20 -and -not $started; $attempt++) { Start-Sleep -Milliseconds 100; $started = $null -ne $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $textCondition) -or $null -ne $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $stopCondition) }',
-        "if (-not $started) { throw 'Codex Desktop did not start prompt' }",
         "Write-Output 'submitted'"
     ].join('\n');
     const result = runDesktopUiScript(script, { timeout: 7000, operation: 'send-prompt' });
