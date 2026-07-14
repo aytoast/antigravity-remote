@@ -19,13 +19,26 @@ const ThreadTime = ({ thread }) => <div className="thread-time">
   <span>{formatRelativeDate(thread.lastUpdated)}</span>
 </div>;
 
+const expandedWorkspacesKey = 'antigravity-remote:expanded-workspaces';
+const pendingWorkspaceSyncKey = 'antigravity-remote:pending-workspace-sync';
+
+const readStoredArray = key => {
+  try { return JSON.parse(window.localStorage.getItem(key) || '[]'); }
+  catch { return []; }
+};
+
+const persistPendingWorkspaceSync = pending => {
+  window.localStorage.setItem(pendingWorkspaceSyncKey, JSON.stringify([...pending.entries()]));
+};
+
 export default function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState([]);
   const [threads, setThreads] = useState([]);
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [pinned, setPinned] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
+  const storedExpansionRef = useRef(window.localStorage.getItem(expandedWorkspacesKey) !== null);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set(readStoredArray(expandedWorkspacesKey)));
   const [loading, setLoading] = useState(true);
   const [displayOptionsOpen, setDisplayOptionsOpen] = useState(false);
   const [displaySelection, setDisplaySelection] = useState(['Project', 'Last Updated', 'No Subtitle']);
@@ -33,8 +46,36 @@ export default function WorkspaceList() {
   const scheduledDesiredRef = useRef(null);
   const scheduledServerRef = useRef(null);
   const scheduledSyncRunningRef = useRef(false);
-  const workspaceSyncRef = useRef(new Map());
+  const workspaceSyncRef = useRef(new Map(readStoredArray(pendingWorkspaceSyncKey)));
   const navigate = useNavigate();
+
+  const syncWorkspaceExpansion = async (workspaceId, pending) => {
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(pending.name)}`), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded: pending.expanded })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop folder sync failed');
+      if (workspaceSyncRef.current.get(workspaceId)?.requestId === pending.requestId) {
+        workspaceSyncRef.current.delete(workspaceId);
+        persistPendingWorkspaceSync(workspaceSyncRef.current);
+        if (workspaceSyncRef.current.size === 0) setDesktopNotice('');
+      }
+    } catch {
+      if (workspaceSyncRef.current.get(workspaceId)?.requestId === pending.requestId) setDesktopNotice('Desktop sync pending');
+    }
+  };
+
+  useEffect(() => {
+    window.localStorage.setItem(expandedWorkspacesKey, JSON.stringify([...expandedWorkspaces]));
+  }, [expandedWorkspaces]);
+
+  useEffect(() => {
+    const flush = () => workspaceSyncRef.current.forEach((pending, workspaceId) => syncWorkspaceExpansion(workspaceId, pending));
+    flush();
+    const interval = window.setInterval(flush, 3000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -52,7 +93,7 @@ export default function WorkspaceList() {
           setWorkspaces(conversationData.data.workspaces);
           setThreads(conversationData.data.threads);
           setExpandedWorkspaces(current => {
-            if (firstLoad) return new Set(conversationData.data.workspaces.map(workspace => workspace.id));
+            if (firstLoad && !storedExpansionRef.current) return new Set(conversationData.data.workspaces.map(workspace => workspace.id));
             const available = new Set(conversationData.data.workspaces.map(workspace => workspace.id));
             return new Set([...current].filter(id => available.has(id)));
           });
@@ -157,25 +198,12 @@ export default function WorkspaceList() {
       return next;
     });
     const expanded = !expandedWorkspaces.has(workspaceId);
-    const requestId = (workspaceSyncRef.current.get(workspaceId) || 0) + 1;
-    workspaceSyncRef.current.set(workspaceId, requestId);
-    try {
-      if (!workspaces.find(workspace => workspace.id === workspaceId)?.providers?.includes('antigravity')) return;
-      const response = await fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(workspaceName)}`), {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded })
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Desktop folder sync failed');
-    } catch (error) {
-      if (workspaceSyncRef.current.get(workspaceId) === requestId) {
-        setExpandedWorkspaces(previous => {
-          const next = new Set(previous);
-          if (expanded) next.delete(workspaceId); else next.add(workspaceId);
-          return next;
-        });
-        setDesktopNotice(error.message);
-      }
-    }
+    if (!workspaces.find(workspace => workspace.id === workspaceId)?.providers?.includes('antigravity')) return;
+    const requestId = (workspaceSyncRef.current.get(workspaceId)?.requestId || 0) + 1;
+    const pending = { requestId, name: workspaceName, expanded };
+    workspaceSyncRef.current.set(workspaceId, pending);
+    persistPendingWorkspaceSync(workspaceSyncRef.current);
+    await syncWorkspaceExpansion(workspaceId, pending);
   };
 
   const toggleWorkspacePin = async (e, workspace) => {
