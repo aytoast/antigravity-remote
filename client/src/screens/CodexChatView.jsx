@@ -193,7 +193,8 @@ export default function CodexChatView() {
     submitPromptRef.current(next.content).finally(() => { queueLockRef.current = false; });
   }, [isTurnActive, sending, queuedPrompts]);
 
-  const displayMessages = [...messages, ...queuedPrompts];
+  const confirmedUserContent = new Set(messages.filter(message => message.role === 'user' && !String(message.id).startsWith('local-')).map(message => message.content.trim()));
+  const displayMessages = [...messages.filter(message => !(String(message.id).startsWith('local-') && confirmedUserContent.has(message.content.trim()))), ...queuedPrompts];
 
   return <div className="chat-page">
     <nav className="navbar">
