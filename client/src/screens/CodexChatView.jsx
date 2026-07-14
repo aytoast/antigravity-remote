@@ -22,10 +22,15 @@ export default function CodexChatView() {
   const [error, setError] = useState('');
   const [modelOpen, setModelOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [isTurnActive, setIsTurnActive] = useState(false);
+  const [queuedPrompts, setQueuedPrompts] = useState([]);
+  const [sendMode, setSendMode] = useState('queue');
   const scrollRef = useRef(null);
   const pendingMessagesRef = useRef([]);
   const modelPickerRef = useRef(null);
   const inputRef = useRef(null);
+  const queueLockRef = useRef(false);
+  const submitPromptRef = useRef(null);
 
   const reconcileMessages = (serverMessages, threadId) => {
     const matchedServerMessages = new Set();
@@ -45,6 +50,7 @@ export default function CodexChatView() {
     const data = await response.json();
     if (!data.success) throw new Error(data.error || 'Codex task is unavailable');
     setTitle(data.data.thread.title);
+    setIsTurnActive(Boolean(data.data.thread.isTurnActive));
     reconcileMessages(data.data.messages, threadId);
   };
 
@@ -61,7 +67,7 @@ export default function CodexChatView() {
 
   useEffect(() => {
     setError('');
-    if (id === 'new') { setLoading(false); setMessages([]); setTitle('New Codex Task'); return; }
+    if (id === 'new') { setLoading(false); setMessages([]); setQueuedPrompts([]); setIsTurnActive(false); setTitle('New Codex Task'); return; }
     setLoading(true);
     setMessages(pendingMessagesRef.current.filter(message => message.threadId === id));
     loadThread(id).catch(error => setError(error.message)).finally(() => setLoading(false));
@@ -69,7 +75,13 @@ export default function CodexChatView() {
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, queuedPrompts]);
+
+  useEffect(() => {
+    if (id === 'new' || (!isTurnActive && queuedPrompts.length === 0)) return undefined;
+    const interval = window.setInterval(() => loadThread(id).catch(() => {}), 750);
+    return () => window.clearInterval(interval);
+  }, [id, isTurnActive, queuedPrompts.length]);
 
   useEffect(() => {
     const inputElement = inputRef.current;
@@ -87,13 +99,13 @@ export default function CodexChatView() {
     return () => document.removeEventListener('pointerdown', closeModelMenu);
   }, [modelOpen]);
 
-  const send = async () => {
-    const prompt = input.trim();
+  const submitPrompt = async (prompt, mode = 'queue') => {
     if (!prompt || sending) return;
     setSending(true);
     setError('');
     try {
       let threadId = id;
+      if (mode === 'steer' && id === 'new') throw new Error('Start a Codex task before steering it');
       if (id === 'new') {
         const response = await fetch(apiUrl('/api/codex/threads'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cwd: workspace?.path, model }) });
         const data = await response.json();
@@ -104,19 +116,11 @@ export default function CodexChatView() {
       pendingMessagesRef.current.push(optimistic);
       setMessages(current => [...current, optimistic]);
       setInput('');
-      const response = await fetch(apiUrl(`/api/codex/threads/${threadId}/prompt`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, cwd: workspace?.path, model }) });
+      const response = await fetch(apiUrl(`/api/codex/threads/${threadId}/${mode === 'steer' ? 'steer' : 'prompt'}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'steer' ? { prompt } : { prompt, cwd: workspace?.path, model }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Codex prompt failed');
+      setIsTurnActive(true);
       if (id === 'new') navigate(`/chat/codex/${threadId}`);
-      else {
-        let attempts = 0;
-        const refresh = async () => {
-          attempts += 1;
-          try { await loadThread(threadId); } catch {}
-          if (attempts < 30) window.setTimeout(refresh, attempts < 10 ? 350 : 900);
-        };
-        window.setTimeout(refresh, 250);
-      }
     } catch (requestError) {
       pendingMessagesRef.current = pendingMessagesRef.current.filter(message => message.content !== prompt);
       setMessages(current => current.filter(message => message.content !== prompt || !String(message.id).startsWith('local-')));
@@ -125,14 +129,36 @@ export default function CodexChatView() {
     }
     finally { setSending(false); }
   };
+  submitPromptRef.current = submitPrompt;
+
+  const send = async () => {
+    const prompt = input.trim();
+    if (!prompt || sending) return;
+    if (isTurnActive && sendMode === 'queue') {
+      setQueuedPrompts(current => [...current, { id: `queued-${Date.now()}`, role: 'user', content: prompt, isQueued: true }]);
+      setInput('');
+      return;
+    }
+    await submitPrompt(prompt, isTurnActive ? 'steer' : 'queue');
+  };
+
+  useEffect(() => {
+    if (isTurnActive || sending || queuedPrompts.length === 0 || queueLockRef.current) return;
+    const [next] = queuedPrompts;
+    queueLockRef.current = true;
+    setQueuedPrompts(current => current.slice(1));
+    submitPromptRef.current(next.content).finally(() => { queueLockRef.current = false; });
+  }, [isTurnActive, sending, queuedPrompts]);
+
+  const displayMessages = [...messages, ...queuedPrompts];
 
   return <div className="chat-page">
     <nav className="navbar">
       <div className="chat-heading-wrap"><button className="back-button" type="button" onClick={() => navigate(-1)} aria-label="Back"><ChevronLeft size={22} /></button><div className="chat-heading-meta"><h1>{title}</h1><ProviderBadge provider="codex" /></div></div>
     </nav>
     <div ref={scrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }}><div className="chat-container">
-      {loading ? <ChatSkeleton /> : messages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}${String(message.id).startsWith('local-') ? ' is-new-message' : ''}`}>
-        {message.role === 'ai' ? <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url}>{message.content}</ReactMarkdown> : message.content}
+      {loading ? <ChatSkeleton /> : displayMessages.map(message => message.role === 'event' ? <div key={message.id} className="timeline-event"><span>{message.title}</span></div> : <div key={message.id} className={`chat-bubble ${message.role}${String(message.id).startsWith('local-') ? ' is-new-message' : ''}${message.isQueued ? ' is-queued' : ''}`}>
+        {message.role === 'ai' ? <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url}>{message.content}</ReactMarkdown> : <>{message.content}{message.isQueued && <span className="queued-message-label">Queued</span>}</>}
       </div>)}
     </div></div>
     <div className="input-area">
@@ -141,7 +167,7 @@ export default function CodexChatView() {
         {workspaceOpen && <div className="project-picker-menu" role="listbox">{workspaces.map(item => <button key={item.id} type="button" onClick={() => { setWorkspace(item); setWorkspaceOpen(false); }}><Folder size={15} />{item.name}</button>)}</div>}
       </div>}
       <div className="composer"><textarea ref={inputRef} rows={1} className="input-box" placeholder="Prompt Codex" value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} disabled={sending} />
-        <div className="composer-footer"><div className="model-picker" ref={modelPickerRef}><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)} onKeyDown={event => event.key === 'Escape' && setModelOpen(false)} aria-expanded={modelOpen} aria-haspopup="listbox"><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu" role="listbox" aria-label="Select model">{models.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === model} className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => { setModel(item.id); setModelOpen(false); }}>{item.name}</button>)}</div>}</div></div>
+        <div className="composer-footer">{isTurnActive && <div className="send-mode" role="group" aria-label="Prompt mode"><button type="button" className={sendMode === 'queue' ? 'is-selected' : ''} onClick={() => setSendMode('queue')}>Queue</button><button type="button" className={sendMode === 'steer' ? 'is-selected' : ''} onClick={() => setSendMode('steer')}>Steer</button></div>}<div className="model-picker" ref={modelPickerRef}><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)} onKeyDown={event => event.key === 'Escape' && setModelOpen(false)} aria-expanded={modelOpen} aria-haspopup="listbox"><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu" role="listbox" aria-label="Select model">{models.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === model} className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => { setModel(item.id); setModelOpen(false); }}>{item.name}</button>)}</div>}</div></div>
         <button className="composer-submit" type="button" onClick={send} disabled={sending || !input.trim()} aria-label="Send prompt"><Send size={16} /></button>
       </div>
       {error && <div className="bridge-error" role="status">{error}</div>}

@@ -15,6 +15,7 @@ let buffer = '';
 let started;
 const pending = new Map();
 const events = new EventEmitter();
+const activeTurns = new Map();
 let desktopStateCache = { mtimeMs: -1, data: null };
 
 function normalizeDesktopState(raw = {}) {
@@ -292,6 +293,8 @@ function handleMessage(message) {
         return;
     }
 
+    if (message.method === 'turn/started' && message.params?.threadId && message.params?.turn?.id) activeTurns.set(message.params.threadId, message.params.turn.id);
+    if (message.method === 'turn/completed' && message.params?.threadId) activeTurns.delete(message.params.threadId);
     if (message.method) events.emit('notification', message);
 }
 
@@ -366,6 +369,8 @@ function normalizeThread(thread, desktopState = {}) {
         status: thread.status?.type || 'notLoaded',
         model: thread.model || null,
         messageCount: thread.turns?.length || 0,
+        isTurnActive: thread.status?.type === 'active',
+        activeTurnId: activeTurns.get(thread.id) || thread.turns?.find(turn => turn.status === 'inProgress')?.id || null,
         isProjectless: !assignedWorkspacePath && (desktopState.projectlessThreadIds?.has(thread.id) || false),
         isPinned: desktopState.pinnedThreadIds?.has(thread.id) || false
     };
@@ -419,10 +424,23 @@ async function startThread({ cwd, model } = {}) {
 
 async function sendPrompt(id, { prompt, cwd, model } = {}) {
     await request('thread/resume', { threadId: id, cwd: cwd || null, model: model || null, approvalPolicy: 'on-request' });
-    return request('turn/start', {
+    const result = await request('turn/start', {
         threadId: id,
         cwd: cwd || null,
         model: model || null,
+        input: [{ type: 'text', text: prompt }]
+    });
+    if (result?.turn?.id) activeTurns.set(id, result.turn.id);
+    return result;
+}
+
+async function steerPrompt(id, prompt) {
+    const thread = await request('thread/read', { threadId: id, includeTurns: true });
+    const expectedTurnId = activeTurns.get(id) || thread.thread?.turns?.find(turn => turn.status === 'inProgress')?.id;
+    if (!expectedTurnId) throw new Error('No active Codex turn to steer');
+    return request('turn/steer', {
+        threadId: id,
+        expectedTurnId,
         input: [{ type: 'text', text: prompt }]
     });
 }
@@ -431,4 +449,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };

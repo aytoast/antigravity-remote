@@ -80,6 +80,12 @@ router.post('/codex/threads/:id/prompt', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.post('/codex/threads/:id/steer', async (req, res) => {
+    if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
+    try { res.json({ success: true, data: await codexBridge.steerPrompt(req.params.id, req.body.prompt.trim()) }); }
+    catch (error) { res.status(409).json({ success: false, error: error.message }); }
+});
+
 router.delete('/codex/threads/:id', async (req, res) => {
     try { await codexBridge.archiveThread(req.params.id); res.json({ success: true }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
@@ -246,6 +252,16 @@ router.post('/desktop/:id/prompt', async (req, res) => {
     if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
     try { res.json({ success: true, data: await desktopBridge.sendPrompt(req.params.id, req.body.prompt) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.get('/desktop/:id/activity', async (req, res) => {
+    try { res.json({ success: true, data: { active: await desktopBridge.isConversationRunning(req.params.id) } }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/desktop/:id/stop', async (req, res) => {
+    try { res.json({ success: true, data: await desktopBridge.stopConversation(req.params.id) }); }
+    catch (error) { res.status(409).json({ success: false, error: error.message }); }
 });
 
 // GET /api/threads/recent

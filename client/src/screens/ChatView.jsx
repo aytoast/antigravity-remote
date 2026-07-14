@@ -44,6 +44,9 @@ export default function ChatView() {
   const [selectedProject, setSelectedProject] = useState('');
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [isTurnActive, setIsTurnActive] = useState(false);
+  const [queuedPrompts, setQueuedPrompts] = useState([]);
+  const [queueReadyToContinue, setQueueReadyToContinue] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const [slashSelection, setSlashSelection] = useState(0);
   const [skills, setSkills] = useState([addSourceSkill]);
@@ -53,6 +56,8 @@ export default function ChatView() {
   const positionedInitialHistory = useRef(false);
   const userScrolledAway = useRef(false);
   const pendingMessagesRef = useRef([]);
+  const queueLockRef = useRef(false);
+  const submitPromptRef = useRef(null);
 
   const cleanMessages = rawMessages => rawMessages.map(message => ({
     ...message,
@@ -82,6 +87,9 @@ export default function ChatView() {
     userScrolledAway.current = false;
     setModelMenuOpen(false);
     setProjectMenuOpen(false);
+    setQueuedPrompts([]);
+    setQueueReadyToContinue(false);
+    setIsTurnActive(false);
     setDesktopConversationId(id === 'new' ? '' : id);
     if (id === 'new') {
       setLoading(false);
@@ -139,6 +147,11 @@ export default function ChatView() {
   }, [desktopConversationId]);
 
   useEffect(() => {
+    if (!desktopConversationId || desktopConversationId === 'new') return;
+    refreshConversation(desktopConversationId).catch(() => {});
+  }, [desktopConversationId]);
+
+  useEffect(() => {
     if (!modelMenuOpen) return undefined;
     const closeMenu = (event) => {
       if (!modelPickerRef.current?.contains(event.target)) setModelMenuOpen(false);
@@ -154,7 +167,7 @@ export default function ChatView() {
       positionedInitialHistory.current = true;
     });
     return () => cancelAnimationFrame(frame);
-  }, [messages]);
+  }, [messages, queuedPrompts]);
 
   useEffect(() => {
     const inputElement = inputRef.current;
@@ -173,11 +186,25 @@ export default function ChatView() {
     if (!userScrolledAway.current) requestAnimationFrame(scrollToBottom);
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || !desktopConversationId) return;
+  const refreshConversation = async conversationId => {
+    const [historyResponse, activityResponse] = await Promise.all([
+      fetch(apiUrl(`/api/threads/${conversationId}`)).then(result => result.json()),
+      fetch(apiUrl(`/api/desktop/${conversationId}/activity`)).then(result => result.json()).catch(() => null)
+    ]);
+    if (historyResponse.success) reconcileMessages(cleanMessages(historyResponse.data), conversationId);
+    if (activityResponse?.success) setIsTurnActive(Boolean(activityResponse.data.active));
+  };
+
+  useEffect(() => {
+    if (!desktopConversationId || desktopConversationId === 'new' || (!isTurnActive && queuedPrompts.length === 0)) return undefined;
+    const interval = window.setInterval(() => refreshConversation(desktopConversationId).catch(() => {}), 750);
+    return () => window.clearInterval(interval);
+  }, [desktopConversationId, isTurnActive, queuedPrompts.length]);
+
+  const submitPrompt = async (prompt) => {
+    if (!prompt || !desktopConversationId) return;
     setSending(true);
     setBridgeError('');
-    const prompt = input.trim();
     const targetId = desktopConversationId;
     const optimistic = { id: `mobile-${Date.now()}`, role: 'user', content: prompt, conversationId: targetId };
     pendingMessagesRef.current.push(optimistic);
@@ -194,18 +221,8 @@ export default function ChatView() {
       const conversationId = data.data?.id || targetId;
       optimistic.conversationId = conversationId;
       if (id === 'new' && conversationId !== 'new') setDesktopConversationId(conversationId);
-      let attempts = 0;
-      const refresh = async () => {
-        attempts += 1;
-        try {
-          const history = await fetch(apiUrl(`/api/threads/${conversationId}`)).then(result => result.json());
-          if (history.success) {
-            reconcileMessages(cleanMessages(history.data), conversationId);
-          }
-        } catch {}
-        if (attempts < 30) window.setTimeout(refresh, attempts < 12 ? 250 : 750);
-      };
-      window.setTimeout(refresh, 150);
+      setIsTurnActive(true);
+      window.setTimeout(() => refreshConversation(conversationId).catch(() => {}), 150);
     } catch (error) {
       pendingMessagesRef.current = pendingMessagesRef.current.filter(message => message.id !== optimistic.id);
       setMessages(previous => previous.filter(message => message.id !== optimistic.id));
@@ -214,6 +231,54 @@ export default function ChatView() {
     } finally {
       setSending(false);
     }
+  };
+  submitPromptRef.current = submitPrompt;
+
+  const handleSend = async () => {
+    const prompt = input.trim();
+    if (!prompt || !desktopConversationId || sending) return;
+    if (isTurnActive) {
+      setQueuedPrompts(current => [...current, { id: `queued-${Date.now()}`, role: 'user', content: prompt, isQueued: true }]);
+      setInput('');
+      return;
+    }
+    await submitPrompt(prompt);
+  };
+
+  useEffect(() => {
+    if (isTurnActive || sending || queueReadyToContinue || queuedPrompts.length === 0 || queueLockRef.current) return;
+    const [next] = queuedPrompts;
+    queueLockRef.current = true;
+    setQueuedPrompts(current => current.slice(1));
+    submitPromptRef.current(next.content).finally(() => { queueLockRef.current = false; });
+  }, [isTurnActive, sending, queueReadyToContinue, queuedPrompts]);
+
+  const stopAndContinue = async () => {
+    if (!desktopConversationId || !isTurnActive || queuedPrompts.length === 0 || sending) return;
+    setSending(true);
+    setBridgeError('');
+    try {
+      const response = await fetch(apiUrl(`/api/desktop/${desktopConversationId}/stop`), { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop response did not stop');
+      setIsTurnActive(false);
+      setQueueReadyToContinue(true);
+      window.setTimeout(() => refreshConversation(desktopConversationId).catch(() => {}), 100);
+    } catch (error) {
+      setBridgeError(error.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const continueQueuedPrompt = async () => {
+    if (isTurnActive || sending || queuedPrompts.length === 0) return;
+    const [next] = queuedPrompts;
+    setQueueReadyToContinue(false);
+    queueLockRef.current = true;
+    setQueuedPrompts(current => current.slice(1));
+    await submitPrompt(next.content);
+    queueLockRef.current = false;
   };
 
   const handleModelChange = async (model) => {
@@ -304,6 +369,8 @@ export default function ChatView() {
     });
   };
 
+  const displayMessages = [...messages, ...queuedPrompts];
+
   return (
     <div className="chat-page">
       <nav className="navbar">
@@ -317,7 +384,7 @@ export default function ChatView() {
       
       <div ref={chatScrollRef} className="container chat-scroll" style={{ overflowY: 'auto' }} onScroll={handleChatScroll}>
         <div className="chat-container">
-          {loading ? <ChatSkeleton /> : messages.map(m => (
+          {loading ? <ChatSkeleton /> : displayMessages.map(m => (
             m.role === 'event' ? (
               <div key={m.id} className={`timeline-event${expandedEvents.has(m.id) ? ' is-expanded' : ''}`}>
                 <button className="timeline-event-toggle" type="button" onClick={() => toggleEvent(m.id)} aria-expanded={expandedEvents.has(m.id)}>
@@ -329,7 +396,7 @@ export default function ChatView() {
                 </div>
               </div>
             ) : (
-              <div key={m.id} className={`chat-bubble ${m.role}${String(m.id).startsWith('mobile-') ? ' is-new-message' : ''}`}>
+              <div key={m.id} className={`chat-bubble ${m.role}${String(m.id).startsWith('mobile-') ? ' is-new-message' : ''}${m.isQueued ? ' is-queued' : ''}`}>
                 {m.role === 'ai' ? (
                   <>
                     {m.thinking && (
@@ -345,7 +412,7 @@ export default function ChatView() {
                     )}
                     <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => url} components={markdownComponents}>{m.content}</ReactMarkdown>
                   </>
-                ) : m.content}
+                ) : <>{m.content}{m.isQueued && <span className="queued-message-label">Queued</span>}</>}
               </div>
             )
           ))}
@@ -399,6 +466,7 @@ export default function ChatView() {
                 <Plus size={16} strokeWidth={1.8} />
               </button>
             </span>
+            {queuedPrompts.length > 0 && (isTurnActive ? <button className="queue-control" type="button" onClick={stopAndContinue} disabled={sending}>Stop &amp; continue</button> : queueReadyToContinue && <button className="queue-control" type="button" onClick={continueQueuedPrompt} disabled={sending}>Continue</button>)}
             {models.length > 0 && <div className="model-picker" ref={modelPickerRef}>
               <button className="model-trigger" type="button" onClick={() => setModelMenuOpen(open => !open)} onKeyDown={(event) => event.key === 'Escape' && setModelMenuOpen(false)} aria-expanded={modelMenuOpen} aria-haspopup="listbox">
                 <span>{selectedModel}</span>

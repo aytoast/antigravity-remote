@@ -894,6 +894,17 @@ body {
   animation: messageEnter 0.2s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
+.chat-bubble.is-queued {
+  opacity: 0.68;
+}
+
+.queued-message-label {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
 .chat-bubble.user {
   align-self: flex-end;
   background-color: var(--surface-color);
@@ -1494,6 +1505,45 @@ body {
 @keyframes messageEnter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.send-mode {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.send-mode button {
+  padding: 3px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.send-mode button.is-selected {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.queue-control {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 24px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.queue-control:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {

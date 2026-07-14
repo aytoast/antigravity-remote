@@ -224,6 +224,18 @@ async function sendPrompt(cascadeId, prompt) {
     }
 }
 
+async function isConversationRunning(cascadeId) {
+    const target = await findTarget(cascadeId);
+    return Boolean(await evaluate(target, `(()=>{const visible=element=>element&&element.getBoundingClientRect().width>0&&element.getBoundingClientRect().height>0; return [...document.querySelectorAll('button,[role="button"]')].filter(visible).some(element=>/\\b(stop|cancel|interrupt)\\b/i.test([element.innerText,element.getAttribute('aria-label'),element.getAttribute('title')].filter(Boolean).join(' ')))})()`));
+}
+
+async function stopConversation(cascadeId) {
+    const target = await findTarget(cascadeId);
+    const stopped = await evaluate(target, `(()=>{const visible=element=>element&&element.getBoundingClientRect().width>0&&element.getBoundingClientRect().height>0; const control=[...document.querySelectorAll('button,[role="button"]')].filter(visible).find(element=>/\\b(stop|cancel|interrupt)\\b/i.test([element.innerText,element.getAttribute('aria-label'),element.getAttribute('title')].filter(Boolean).join(' '))); if(!control) return false; control.click(); return true})()`);
+    if (!stopped) throw new Error('Antigravity response is no longer running');
+    return { stopped: true };
+}
+
 async function listModels(cascadeId) {
     let target;
     try {
@@ -425,4 +437,4 @@ async function getScheduledTaskDetail(name) {
     return detail;
 }
 
-module.exports = { listTargets, sendPrompt, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, setSidebarProjectExpanded, openConversation, openNewConversation, selectNewConversationProject, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };
+module.exports = { listTargets, sendPrompt, isConversationRunning, stopConversation, listModels, selectModel, setThreadPinned, archiveConversation, getSidebarOptions, setSidebarOption, listSidebarThreads, listSidebarProjects, setSidebarProjectExpanded, openConversation, openNewConversation, selectNewConversationProject, openScheduledTasks, listScheduledTasks, setScheduledTaskEnabled, getScheduledTaskDetail };

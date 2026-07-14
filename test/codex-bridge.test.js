@@ -98,6 +98,17 @@ test('Codex thread maps to shared conversation shape', () => {
     assert.equal(thread.status, 'idle');
 });
 
+test('Codex active thread exposes active turn state', () => {
+    const thread = normalizeThread({
+        id: 'thread-active',
+        status: { type: 'active' },
+        turns: [{ id: 'turn-active', status: 'inProgress', items: [] }]
+    });
+
+    assert.equal(thread.isTurnActive, true);
+    assert.equal(thread.activeTurnId, 'turn-active');
+});
+
 test('Codex messages map user, assistant, and command items', () => {
     const messages = normalizeMessages({ turns: [{ items: [
         { id: 'u1', type: 'userMessage', content: 'Fix it' },
