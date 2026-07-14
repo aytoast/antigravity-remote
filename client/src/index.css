@@ -905,6 +905,60 @@ body {
   font-size: 0.72rem;
 }
 
+.queued-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.queued-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.queued-prompt-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queued-prompt-steer,
+.queued-prompt-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.queued-prompt-steer:hover:not(:disabled),
+.queued-prompt-remove:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.queued-prompt-steer:disabled,
+.queued-prompt-remove:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .chat-bubble.user {
   align-self: flex-end;
   background-color: var(--surface-color);

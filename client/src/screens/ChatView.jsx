@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, ChevronUp, Folder, Mic, Plus, Send } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, CornerUpRight, Folder, Mic, Plus, Send, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiUrl } from '../api';
@@ -47,7 +47,6 @@ export default function ChatView() {
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [queuedPrompts, setQueuedPrompts] = useState([]);
   const [queueReadyToContinue, setQueueReadyToContinue] = useState(false);
-  const [sendMode, setSendMode] = useState('queue');
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const [slashSelection, setSlashSelection] = useState(0);
   const [skills, setSkills] = useState([addSourceSkill]);
@@ -258,14 +257,13 @@ export default function ChatView() {
     if (isTurnActive) {
       setQueuedPrompts(current => [...current, { id: `queued-${Date.now()}`, role: 'user', content: prompt, isQueued: true }]);
       setInput('');
-      if (sendMode === 'steer') await stopAndContinue();
       return;
     }
     await submitPrompt(prompt);
   };
 
   useEffect(() => {
-    if (isTurnActive || sending || queueReadyToContinue || queuedPrompts.length === 0 || queueLockRef.current) return;
+    if (isTurnActive || sending || queuedPrompts.length === 0 || queueLockRef.current) return;
     const [next] = queuedPrompts;
     queueLockRef.current = true;
     setQueuedPrompts(current => current.slice(1));
@@ -281,7 +279,7 @@ export default function ChatView() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Desktop response did not stop');
       setIsTurnActive(false);
-      setQueueReadyToContinue(true);
+      setQueueReadyToContinue(false);
       window.setTimeout(() => refreshConversation(desktopConversationId).catch(() => {}), 100);
     } catch (error) {
       setBridgeError(error.message);
@@ -290,14 +288,11 @@ export default function ChatView() {
     }
   };
 
-  const continueQueuedPrompt = async () => {
-    if (isTurnActive || sending || queuedPrompts.length === 0) return;
-    const [next] = queuedPrompts;
-    setQueueReadyToContinue(false);
-    queueLockRef.current = true;
-    setQueuedPrompts(current => current.slice(1));
-    await submitPrompt(next.content);
-    queueLockRef.current = false;
+  const steerQueuedPrompt = async queued => {
+    if (sending || !isTurnActive) return;
+    setQueuedPrompts(current => current.filter(item => item.id !== queued.id));
+    await stopAndContinue();
+    await submitPrompt(queued.content);
   };
 
   const handleModelChange = async (model) => {
@@ -388,7 +383,7 @@ export default function ChatView() {
     });
   };
 
-  const displayMessages = [...messages, ...queuedPrompts];
+  const displayMessages = messages;
 
   return (
     <div className="chat-page">
@@ -449,7 +444,7 @@ export default function ChatView() {
           </div>}
         </div>}
         <div className="composer">
-          {isTurnActive && <div className="turn-actions" role="group" aria-label="Prompt mode"><button type="button" className={sendMode === 'queue' ? 'is-selected' : ''} onClick={() => setSendMode('queue')}>Queue</button><button type="button" className={sendMode === 'steer' ? 'is-selected' : ''} onClick={() => setSendMode('steer')}>Steer</button></div>}
+          {queuedPrompts.length > 0 && <div className="queued-prompts" aria-label="Queued prompts">{queuedPrompts.map(queued => <div className="queued-prompt" key={queued.id}><span className="queued-prompt-content">{queued.content}</span><button type="button" className="queued-prompt-steer" onClick={() => steerQueuedPrompt(queued)} disabled={sending || !isTurnActive}><CornerUpRight size={14} />Steer</button><button type="button" className="queued-prompt-remove" onClick={() => setQueuedPrompts(current => current.filter(item => item.id !== queued.id))} disabled={sending} aria-label="Remove queued prompt"><Trash2 size={14} /></button></div>)}</div>}
           <textarea
             ref={inputRef}
             rows={1}
@@ -498,7 +493,6 @@ export default function ChatView() {
               </div>}
             </div>}
           </div>
-          {queuedPrompts.length > 0 && (isTurnActive ? <button className="queue-control" type="button" onClick={stopAndContinue} disabled={sending}>Stop &amp; continue</button> : queueReadyToContinue && <button className="queue-control" type="button" onClick={continueQueuedPrompt} disabled={sending}>Continue</button>)}
           {submitDisabled ? <span className="disabled-tooltip composer-submit-tooltip" data-tooltip={submitDisabledReason} tabIndex={0}>
             <button className="composer-submit" onClick={handleSend} disabled aria-label={submitDisabledReason}>
               {input.trim() ? <Send size={16} /> : <Mic size={16} />}
