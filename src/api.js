@@ -56,7 +56,8 @@ router.put('/desktop/sidebar-projects/:name', async (req, res) => {
 });
 
 router.get('/codex/sidebar-projects', (req, res) => {
-    res.json({ success: true, data: codexBridge.listWorkspaces() });
+    try { res.json({ success: true, data: codexBridge.listDesktopWorkspaces() }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
 router.put('/codex/sidebar-projects', (req, res) => {

@@ -392,8 +392,6 @@ function setWorkspacePinned(workspacePath, pinned) {
 }
 
 function setWorkspaceExpanded(workspacePath, expanded) {
-    const currentWorkspace = getDesktopState().workspaces.find(workspace => workspace.path.toLowerCase() === workspacePath.toLowerCase());
-    if (currentWorkspace?.expanded === expanded) return { path: workspacePath, expanded, live: true };
     const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
     const persistedState = raw['electron-persisted-atom-state'] || {};
     const key = `sidebar-project-expanded-v1-codex:${workspacePath}`;
@@ -421,18 +419,42 @@ function setWorkspaceExpanded(workspacePath, expanded) {
             `$target = '${projectName}'`,
             `$desired = $${expanded ? 'true' : 'false'}`,
             '$listType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)',
-            '$targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target)',
-            '$project = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName)))',
-            "if (-not $project) { Write-Output 'persisted'; exit 0 }",
-            '$rect = $project.Current.BoundingRectangle; $current = $rect.Height -gt 45',
             '$buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
-            '$button = $project.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $targetName)))',
-            'if ($current -ne $desired -and $button) { $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 150 }',
-            "Write-Output 'live'"
+            '$targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target)',
+            '$matches = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName)))',
+            '$project = $null; for ($index = 0; $index -lt $matches.Count; $index++) { $candidate = $matches.Item($index); $candidateButton = $candidate.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $targetName))); if ($candidateButton) { $project = $candidate; $button = $candidateButton; break } }',
+            "if (-not $project) { Write-Output 'unavailable'; exit 0 }",
+            '$pattern = $button.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)',
+            '$current = $pattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Expanded',
+            'if ($current -ne $desired) { if ($desired) { $pattern.Expand() } else { $pattern.Collapse() } }',
+            '$verified = $false; for ($attempt = 0; $attempt -lt 10; $attempt++) { Start-Sleep -Milliseconds 100; $matches = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName))); for ($index = 0; $index -lt $matches.Count; $index++) { $candidate = $matches.Item($index); $candidateButton = $candidate.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $targetName))); if ($candidateButton) { $candidatePattern = $candidateButton.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern); $candidateExpanded = $candidatePattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Expanded; if ($candidateExpanded -eq $desired) { $verified = $true; break } } }; if ($verified) { break } }',
+            "if ($verified) { Write-Output 'live' } else { Write-Output 'unavailable' }"
         ].join('\n');
-        try { live = runDesktopUiScript(script, { timeout: 2500, operation: 'set-project-expanded' }) === 'live'; } catch {}
+        try { live = runDesktopUiScript(script, { timeout: 3500, operation: 'set-project-expanded' }) === 'live'; } catch {}
     }
     return { path: workspacePath, expanded, live };
+}
+
+function listDesktopWorkspaces() {
+    const workspaces = listWorkspaces();
+    if (process.platform !== 'win32') throw new Error('Codex Desktop automation is unavailable');
+    const encodedTargets = Buffer.from(JSON.stringify(workspaces.map(workspace => workspace.name)), 'utf8').toString('base64');
+    const script = [
+        desktopUiSetup,
+        `$targets = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${encodedTargets}')) | ConvertFrom-Json`,
+        '$listType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)',
+        '$buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
+        '$result = @(); foreach ($target in $targets) { $targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target); $matches = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName))); for ($index = 0; $index -lt $matches.Count; $index++) { $candidate = $matches.Item($index); $button = $candidate.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $targetName))); if ($button) { $pattern = $button.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern); $result += [PSCustomObject]@{ name = $target; expanded = ($pattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Expanded) }; break } } }',
+        '$result | ConvertTo-Json -Compress'
+    ].join('\n');
+    const output = runDesktopUiScript(script, { timeout: 3500, operation: 'read-project-expansion' });
+    if (!output) return [];
+    const liveProjects = JSON.parse(output);
+    const byName = new Map((Array.isArray(liveProjects) ? liveProjects : [liveProjects]).map(project => [project.name.toLowerCase(), project.expanded]));
+    return workspaces.filter(workspace => byName.has(workspace.name.toLowerCase())).map(workspace => ({
+        ...workspace,
+        expanded: byName.get(workspace.name.toLowerCase())
+    }));
 }
 
 function parseTomlString(value) {
@@ -767,4 +789,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getDesktopThreadTitle, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, openDesktopThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspaceExpanded, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getDesktopThreadTitle, getVisibleDesktopModel, listAutomations, listDesktopWorkspaces, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, openDesktopThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspaceExpanded, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };

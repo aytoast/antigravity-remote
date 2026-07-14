@@ -65,7 +65,7 @@ export default function WorkspaceList() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: pending.path, expanded: pending.expanded })
       }).then(async response => {
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Codex folder sync failed');
+        if (!response.ok || !data.success || data.data?.live !== true) throw new Error(data.error || 'Codex folder sync failed');
       }));
       if (providers.includes('antigravity')) operations.push(fetch(apiUrl(`/api/desktop/sidebar-projects/${encodeURIComponent(pending.name)}`), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expanded: pending.expanded })
