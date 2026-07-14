@@ -74,6 +74,12 @@ router.get('/codex/threads/:id/model', (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.put('/codex/threads/:id/model', (req, res) => {
+    if (typeof req.body?.model !== 'string' || !req.body.model.trim()) return res.status(400).json({ success: false, error: 'model is required' });
+    try { res.json({ success: true, data: { model: codexBridge.setVisibleDesktopModel(req.body.model.trim()) } }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.post('/codex/threads', async (req, res) => {
     try { res.json({ success: true, data: await codexBridge.startThread(req.body || {}) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

@@ -32,6 +32,20 @@ export default function CodexChatView() {
   const queueLockRef = useRef(false);
   const submitPromptRef = useRef(null);
 
+  const handleModelChange = async nextModel => {
+    const previousModel = model;
+    setModel(nextModel);
+    setModelOpen(false);
+    try {
+      const response = await fetch(apiUrl(`/api/codex/threads/${id}/model`), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: nextModel }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Desktop model selection failed');
+    } catch (error) {
+      setModel(previousModel);
+      setError(error.message);
+    }
+  };
+
   const reconcileMessages = (serverMessages, threadId) => {
     const matchedServerMessages = new Set();
     const pending = pendingMessagesRef.current.filter(message => message.threadId === threadId);
@@ -178,7 +192,7 @@ export default function CodexChatView() {
         {workspaceOpen && <div className="project-picker-menu" role="listbox">{workspaces.map(item => <button key={item.id} type="button" onClick={() => { setWorkspace(item); setWorkspaceOpen(false); }}><Folder size={15} />{item.name}</button>)}</div>}
       </div>}
       <div className="composer">{isTurnActive && <div className="turn-actions" role="group" aria-label="Prompt mode"><button type="button" className={sendMode === 'queue' ? 'is-selected' : ''} onClick={() => setSendMode('queue')}>Queue</button><button type="button" className={sendMode === 'steer' ? 'is-selected' : ''} onClick={() => setSendMode('steer')}>Steer</button></div>}<textarea ref={inputRef} rows={1} className="input-box" placeholder="Prompt Codex" value={input} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} disabled={sending} />
-        <div className="composer-footer"><div className="model-picker" ref={modelPickerRef}><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)} onKeyDown={event => event.key === 'Escape' && setModelOpen(false)} aria-expanded={modelOpen} aria-haspopup="listbox"><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu" role="listbox" aria-label="Select model">{models.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === model} className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => { setModel(item.id); setModelOpen(false); }}>{item.name}</button>)}</div>}</div></div>
+        <div className="composer-footer"><div className="model-picker" ref={modelPickerRef}><button className="model-trigger" type="button" onClick={() => setModelOpen(open => !open)} onKeyDown={event => event.key === 'Escape' && setModelOpen(false)} aria-expanded={modelOpen} aria-haspopup="listbox"><span>{models.find(item => item.id === model)?.name || 'Model'}</span><ChevronUp size={14} /></button>{modelOpen && <div className="model-menu" role="listbox" aria-label="Select model">{models.map(item => <button key={item.id} type="button" role="option" aria-selected={item.id === model} className={`model-option${item.id === model ? ' is-selected' : ''}`} onClick={() => handleModelChange(item.id)}>{item.name}</button>)}</div>}</div></div>
         <button className="composer-submit" type="button" onClick={send} disabled={sending || !input.trim()} aria-label="Send prompt"><Send size={16} /></button>
       </div>
       {error && <div className="bridge-error" role="status">{error}</div>}

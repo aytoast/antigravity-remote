@@ -81,6 +81,12 @@ function modelIdFromDesktopLabel(label) {
     return `gpt-${match[1]}${match[2] ? `-${match[2].toLowerCase()}` : ''}`;
 }
 
+function desktopModelLabelFromId(modelId) {
+    const match = String(modelId || '').match(/^gpt-(5\.\d+(?:\.\d+)?)(?:-(sol|terra|luna|mini))?$/i);
+    if (!match) return null;
+    return `${match[1]}${match[2] ? ` ${match[2][0].toUpperCase()}${match[2].slice(1).toLowerCase()}` : ''}`;
+}
+
 function getVisibleDesktopModel() {
     if (visibleDesktopModelCache.expiresAt > Date.now()) return visibleDesktopModelCache.model;
     if (process.platform !== 'win32') return null;
@@ -103,6 +109,37 @@ function getVisibleDesktopModel() {
     } catch {
         visibleDesktopModelCache = { expiresAt: Date.now() + 250, model: null };
         return null;
+    }
+}
+
+function setVisibleDesktopModel(modelId) {
+    const label = desktopModelLabelFromId(modelId);
+    if (!label || process.platform !== 'win32') throw new Error('Desktop model selection is unavailable');
+    const script = [
+        'Add-Type -AssemblyName UIAutomationClient',
+        "$process = Get-Process ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1",
+        'if (-not $process) { throw \'Codex Desktop is not running\' }',
+        '$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)',
+        '$all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+        "$trigger = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '^(?:GPT[- ]?)?5\\.\\d+') { $trigger = $element; break } }",
+        'if (-not $trigger) { throw \'Desktop model selector is unavailable\' }',
+        '$all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+        "$modelMenu = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.Name -match '^Model ') { $modelMenu = $element; break } }",
+        "if (-not $modelMenu) { $trigger.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand(); Start-Sleep -Milliseconds 120; $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition); for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.Name -match '^Model ') { $modelMenu = $element; break } } }",
+        'if (-not $modelMenu) { throw \'Desktop model menu is unavailable\' }',
+        '$modelPattern = $modelMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern); if ($modelPattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed) { $modelPattern.Expand(); Start-Sleep -Milliseconds 120 }',
+        '$all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+        `$target = '${label}'`,
+        '$option = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::MenuItem -and $element.Current.Name -eq $target) { $option = $element; break } }',
+        'if (-not $option) { throw "Desktop model option $target is unavailable" }',
+        '$option.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 150; Write-Output $option.Current.Name'
+    ].join('; ');
+    try {
+        execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', timeout: 3000, windowsHide: true });
+        visibleDesktopModelCache = { expiresAt: 0, model: null };
+        return modelId;
+    } catch (error) {
+        throw new Error(error.stderr?.toString().trim() || `Desktop model selection failed for ${modelId}`);
     }
 }
 
@@ -524,4 +561,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
