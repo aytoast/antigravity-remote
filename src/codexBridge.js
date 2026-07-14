@@ -9,6 +9,7 @@ const codexHome = process.env.CODEX_HOME || path.join(process.env.USERPROFILE ||
 const desktopStatePath = path.join(codexHome, '.codex-global-state.json');
 const automationsPath = path.join(codexHome, 'automations');
 const stateDatabasePath = path.join(codexHome, 'state_5.sqlite');
+const desktopUiLogPath = path.join(codexHome, 'logs', 'antigravity-remote-uia.log');
 let child;
 let nextId = 1;
 let buffer = '';
@@ -143,13 +144,30 @@ function setVisibleDesktopModel(modelId) {
     }
 }
 
-function runDesktopUiScript(script, timeout = 3000) {
-    if (process.platform !== 'win32') throw new Error('Codex Desktop automation is unavailable');
+function logDesktopUiAttempt(entry) {
     try {
-        return execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', timeout, windowsHide: true }).trim();
-    } catch (error) {
-        throw new Error(error.stderr?.toString().trim() || 'Codex Desktop automation failed');
+        fs.mkdirSync(path.dirname(desktopUiLogPath), { recursive: true });
+        fs.appendFileSync(desktopUiLogPath, `${JSON.stringify({ timestamp: new Date().toISOString(), ...entry })}\n`);
+    } catch {}
+}
+
+function runDesktopUiScript(script, { timeout = 3000, operation = 'desktop-ui', attempts = 1 } = {}) {
+    if (process.platform !== 'win32') throw new Error('Codex Desktop automation is unavailable');
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const startedAt = Date.now();
+        try {
+            const output = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', timeout, windowsHide: true }).trim();
+            logDesktopUiAttempt({ operation, attempt, durationMs: Date.now() - startedAt, success: true });
+            return output;
+        } catch (error) {
+            const message = error.stderr?.toString().trim() || error.stdout?.toString().trim() || 'Codex Desktop automation failed';
+            lastError = new Error(message);
+            logDesktopUiAttempt({ operation, attempt, durationMs: Date.now() - startedAt, success: false, error: message.slice(0, 500) });
+            if (attempt < attempts) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150 * attempt);
+        }
     }
+    throw lastError;
 }
 
 const desktopUiSetup = [
@@ -174,23 +192,33 @@ function sendDesktopPrompt(prompt) {
     const encodedPrompt = Buffer.from(prompt, 'utf8').toString('base64');
     const script = [
         desktopUiSetup,
-        "$modelButton = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '^(?:GPT[- ]?)?5\\.\\d+') { $modelButton = $element; break } }",
+        "$active = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '\\b(stop|cancel|interrupt)\\b') { $active = $element; break } }",
+        "if ($active) { throw 'Codex Desktop is already running a turn' }",
+        "$modelButton = $null; for ($attempt = 0; $attempt -lt 10 -and -not $modelButton; $attempt++) { $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition); for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '^(?:GPT[- ]?)?5\\.\\d+') { $modelButton = $element; break } }; if (-not $modelButton) { Start-Sleep -Milliseconds 100 } }",
         "if (-not $modelButton) { throw 'Codex Desktop composer is unavailable' }",
         '$rect = $modelButton.Current.BoundingRectangle',
         '[CodexDesktopInput]::SetForegroundWindow($process.MainWindowHandle) | Out-Null',
-        '[CodexDesktopInput]::SetCursorPos([int]($rect.Left + 72), [int]($rect.Top - 34)) | Out-Null',
+        '[CodexDesktopInput]::SetCursorPos([int]($rect.Left - 160), [int]($rect.Top - 34)) | Out-Null',
         '[CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
-        'Start-Sleep -Milliseconds 100',
+        'Start-Sleep -Milliseconds 150',
         `$text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${encodedPrompt}'))`,
         '$clipboardText = Get-Clipboard -Raw -ErrorAction SilentlyContinue',
-        'Set-Clipboard -Value $text',
-        '[System.Windows.Forms.SendKeys]::SendWait("^v")',
-        'Start-Sleep -Milliseconds 80',
-        '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
-        'if ($null -ne $clipboardText) { Set-Clipboard -Value $clipboardText }',
+        'try {',
+        '  [System.Windows.Forms.SendKeys]::SendWait("^a"); [System.Windows.Forms.SendKeys]::SendWait("{BACKSPACE}")',
+        '  Set-Clipboard -Value $text',
+        '  [System.Windows.Forms.SendKeys]::SendWait("^v")',
+        '  Start-Sleep -Milliseconds 200',
+        '  $send = $null; $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition); for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); $buttonRect = $element.Current.BoundingRectangle; if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and -not $element.Current.Name -and $element.Current.IsEnabled -and $buttonRect.Left -gt $rect.Right -and [Math]::Abs($buttonRect.Top - $rect.Top) -le 5 -and $buttonRect.Width -ge 30 -and $buttonRect.Width -le 40) { $send = $element; break } }',
+        "  if (-not $send) { [System.Windows.Forms.SendKeys]::SendWait('^a'); [System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}'); throw 'Codex Desktop did not accept prompt text' }",
+        '  $sendRect = $send.Current.BoundingRectangle; [CodexDesktopInput]::SetCursorPos([int]($sendRect.Left + ($sendRect.Width / 2)), [int]($sendRect.Top + ($sendRect.Height / 2))) | Out-Null; [CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
+        '} finally { if ($null -ne $clipboardText) { Set-Clipboard -Value $clipboardText } }',
+        '$textCondition = New-Object System.Windows.Automation.AndCondition((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)), (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $text)))',
+        '$stopCondition = New-Object System.Windows.Automation.AndCondition((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)), (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Stop")))',
+        '$started = $false; for ($attempt = 0; $attempt -lt 20 -and -not $started; $attempt++) { Start-Sleep -Milliseconds 100; $started = $null -ne $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $textCondition) -or $null -ne $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $stopCondition) }',
+        "if (-not $started) { throw 'Codex Desktop did not start prompt' }",
         "Write-Output 'submitted'"
     ].join('\n');
-    const result = runDesktopUiScript(script, 5000);
+    const result = runDesktopUiScript(script, { timeout: 7000, operation: 'send-prompt' });
     if (result !== 'submitted') throw new Error('Codex Desktop did not submit prompt');
     return { accepted: true };
 }
@@ -201,7 +229,7 @@ function getDesktopTurnActive() {
         "for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '\\b(stop|cancel|interrupt)\\b') { Write-Output 'active'; exit 0 } }",
         "Write-Output 'idle'"
     ].join('\n');
-    return runDesktopUiScript(script) === 'active';
+    return runDesktopUiScript(script, { operation: 'read-activity', attempts: 2 }) === 'active';
 }
 
 function stopDesktopTurn() {
@@ -212,16 +240,16 @@ function stopDesktopTurn() {
         '$stop.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()',
         "Write-Output 'stopped'"
     ].join('\n');
-    if (runDesktopUiScript(script) !== 'stopped') throw new Error('Codex Desktop did not stop turn');
+    if (runDesktopUiScript(script, { operation: 'stop-turn' }) !== 'stopped') throw new Error('Codex Desktop did not stop turn');
     return { stopped: true };
 }
 
-function getDesktopThreadTitle(threadId) {
+function getDesktopThreadTarget(threadId) {
     if (!fs.existsSync(stateDatabasePath)) return null;
     let database;
     try {
         database = new Database(stateDatabasePath, { readonly: true, fileMustExist: true });
-        return database.prepare('SELECT title FROM threads WHERE id = ?').get(threadId)?.title || null;
+        return database.prepare('SELECT title, cwd FROM threads WHERE id = ?').get(threadId) || null;
     } catch {
         return null;
     } finally {
@@ -229,22 +257,56 @@ function getDesktopThreadTitle(threadId) {
     }
 }
 
-function openDesktopThread(threadId) {
-    const title = getDesktopThreadTitle(threadId);
-    if (!title) throw new Error('Codex Desktop task is unavailable');
+function getDesktopThreadTitle(threadId) {
+    return getDesktopThreadTarget(threadId)?.title || null;
+}
+
+async function resolveDesktopThreadTarget(threadId) {
+    try {
+        const result = await request('thread/read', { threadId, includeTurns: false });
+        const thread = result.thread;
+        const desktopState = getDesktopState();
+        return {
+            title: thread.name || thread.preview || getDesktopThreadTitle(threadId),
+            cwd: desktopState.threadWorkspacePaths?.get(threadId) || thread.cwd || null
+        };
+    } catch {
+        return getDesktopThreadTarget(threadId);
+    }
+}
+
+async function openDesktopThread(threadId) {
+    const target = await resolveDesktopThreadTarget(threadId);
+    if (!target?.title) throw new Error('Codex Desktop task is unavailable');
+    const projectName = target.cwd ? path.basename(target.cwd) : '';
     const script = [
         desktopUiSetup,
-        `$target = '${title.replace(/'/g, "''")}'`,
-        '$task = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem -and $element.Current.Name -eq $target) { $task = $element; break } }',
+        `$target = '${target.title.replace(/'/g, "''")}'`,
+        `$projectName = '${projectName.replace(/'/g, "''")}'`,
+        '$textType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)',
+        '$listItemType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)',
+        '$buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
+        '$targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target)',
+        '$taskCondition = New-Object System.Windows.Automation.AndCondition($listItemType, $targetName)',
+        '$headerCondition = New-Object System.Windows.Automation.AndCondition($textType, $targetName)',
+        'function Find-TargetHeader { $matches = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $headerCondition); for ($index = 0; $index -lt $matches.Count; $index++) { $candidate = $matches.Item($index); $candidateRect = $candidate.Current.BoundingRectangle; if ($candidateRect.Left -gt 300 -and $candidateRect.Top -ge 40 -and $candidateRect.Top -le 90) { return $candidate } }; return $null }',
+        '$current = Find-TargetHeader',
+        "if ($current) { Write-Output 'opened'; exit 0 }",
+        '$project = $null; if ($projectName) { $projectNameCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $projectName); $projectCondition = New-Object System.Windows.Automation.AndCondition($listItemType, $projectNameCondition); $project = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $projectCondition) }',
+        '$task = if ($project) { $project.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $taskCondition) } else { $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $taskCondition) }',
+        '$task = if ($task) { $task } else { $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $taskCondition) }',
+        'if (-not $task -and $project) { $rect = $project.Current.BoundingRectangle; if ($rect.Height -le 45) { $projectButtonName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $projectName); $projectButton = $project.FindFirst([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($buttonType, $projectButtonName))); if (-not $projectButton) { throw "Codex Desktop project control is unavailable" }; $projectButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 300; $project = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $projectCondition); if ($project) { $task = $project.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $taskCondition) } } }',
         "if (-not $task) { throw 'Codex Desktop task is not visible' }",
-        '$task.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView(); Start-Sleep -Milliseconds 60',
-        '$rect = $task.Current.BoundingRectangle',
+        '$task.GetCurrentPattern([System.Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView(); Start-Sleep -Milliseconds 120',
+        '$taskRect = $task.Current.BoundingRectangle',
         '[CodexDesktopInput]::SetForegroundWindow($process.MainWindowHandle) | Out-Null',
-        '[CodexDesktopInput]::SetCursorPos([int]($rect.Left + [Math]::Min(100, $rect.Width / 2)), [int]($rect.Top + $rect.Height / 2)) | Out-Null',
+        '[CodexDesktopInput]::SetCursorPos([int]($taskRect.Left + 100), [int]($taskRect.Top + ($taskRect.Height / 2))) | Out-Null',
         '[CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
+        '$confirmed = $false; for ($attempt = 0; $attempt -lt 20 -and -not $confirmed; $attempt++) { Start-Sleep -Milliseconds 100; $confirmed = $null -ne (Find-TargetHeader) }',
+        "if (-not $confirmed) { throw 'Codex Desktop task selection was not confirmed' }",
         "Write-Output 'opened'"
     ].join('\n');
-    if (runDesktopUiScript(script) !== 'opened') throw new Error('Codex Desktop did not open task');
+    if (runDesktopUiScript(script, { timeout: 3500, operation: 'open-task' }) !== 'opened') throw new Error('Codex Desktop did not open task');
     return { opened: true, id: threadId };
 }
 

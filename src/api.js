@@ -85,10 +85,10 @@ router.get('/codex/desktop/activity', (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
-router.post('/codex/desktop/threads/:id/prompt', (req, res) => {
+router.post('/codex/desktop/threads/:id/prompt', async (req, res) => {
     if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
     try {
-        codexBridge.openDesktopThread(req.params.id);
+        await codexBridge.openDesktopThread(req.params.id);
         res.json({ success: true, data: codexBridge.sendDesktopPrompt(req.body.prompt.trim()) });
     }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
@@ -99,8 +99,8 @@ router.post('/codex/desktop/stop', (req, res) => {
     catch (error) { res.status(409).json({ success: false, error: error.message }); }
 });
 
-router.post('/codex/desktop/threads/:id/open', (req, res) => {
-    try { res.json({ success: true, data: codexBridge.openDesktopThread(req.params.id) }); }
+router.post('/codex/desktop/threads/:id/open', async (req, res) => {
+    try { res.json({ success: true, data: await codexBridge.openDesktopThread(req.params.id) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
