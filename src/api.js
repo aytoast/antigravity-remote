@@ -91,6 +91,13 @@ router.put('/codex/threads/:id/pin', (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.put('/codex/workspaces/pin', (req, res) => {
+    if (typeof req.body?.path !== 'string' || !req.body.path.trim()) return res.status(400).json({ success: false, error: 'workspace path is required' });
+    if (typeof req.body?.pinned !== 'boolean') return res.status(400).json({ success: false, error: 'pinned is required' });
+    try { res.json({ success: true, data: codexBridge.setWorkspacePinned(req.body.path, req.body.pinned) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.get('/codex/scheduled-tasks', (req, res) => {
     try { res.json({ success: true, data: codexBridge.listAutomations() }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

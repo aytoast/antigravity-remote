@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { commandInvocation, formatAutomationSchedule, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedThreadIds } = require('../src/codexBridge');
+const { commandInvocation, formatAutomationSchedule, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedProjectIds, updatePinnedThreadIds } = require('../src/codexBridge');
 
 test('Codex bridge uses repo-pinned App Server', () => {
     const invocation = commandInvocation();
@@ -57,6 +57,18 @@ test('Codex pin state restores top-level state from persisted desktop state', ()
 
     assert.deepEqual(next['pinned-thread-ids'], []);
     assert.deepEqual(next['electron-persisted-atom-state']['pinned-thread-ids'], []);
+});
+
+test('Codex project pin state updates desktop persistence', () => {
+    const raw = {
+        'electron-persisted-atom-state': { 'pinned-project-ids': ['C:\\work\\existing'] }
+    };
+    const pinned = updatePinnedProjectIds(raw, 'C:\\work\\new', true);
+    const unpinned = updatePinnedProjectIds(pinned, 'C:\\work\\existing', false);
+
+    assert.deepEqual(pinned['pinned-project-ids'], ['C:\\work\\existing', 'C:\\work\\new']);
+    assert.deepEqual(unpinned['pinned-project-ids'], ['C:\\work\\new']);
+    assert.deepEqual(unpinned['electron-persisted-atom-state']['pinned-project-ids'], ['C:\\work\\new']);
 });
 
 test('Codex automation metadata maps to scheduled task shape', () => {

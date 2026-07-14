@@ -135,6 +135,7 @@ export default function WorkspaceList() {
   Object.values(projectsMap).forEach(projectThreads => projectThreads.sort(sortThreads));
   looseThreads.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   const orderedWorkspaces = [...workspaces].sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
     if (!displaySelection.includes('Alphabetical (A-Z)') && Number.isFinite(a.desktopOrder) && Number.isFinite(b.desktopOrder)) return a.desktopOrder - b.desktopOrder;
     const aUpdated = projectsMap[a.name]?.[0]?.lastUpdated;
     const bUpdated = projectsMap[b.name]?.[0]?.lastUpdated;
@@ -174,6 +175,28 @@ export default function WorkspaceList() {
         });
         setDesktopNotice(error.message);
       }
+    }
+  };
+
+  const toggleWorkspacePin = async (e, workspace) => {
+    e.stopPropagation();
+    if (!workspace.providers.includes('codex')) return;
+    const previous = workspace.isPinned;
+    const shouldPin = !previous;
+    setWorkspaces(current => current.map(item => item.id === workspace.id ? { ...item, isPinned: shouldPin } : item));
+    setDesktopNotice('');
+    try {
+      const response = await fetch(apiUrl('/api/codex/workspaces/pin'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspace.path, pinned: shouldPin })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Codex project pin state did not update');
+      setWorkspaces(current => current.map(item => item.id === workspace.id ? { ...item, isPinned: data.data.isPinned } : item));
+    } catch (error) {
+      setWorkspaces(current => current.map(item => item.id === workspace.id ? { ...item, isPinned: previous } : item));
+      setDesktopNotice(error.message);
     }
   };
 
@@ -351,6 +374,7 @@ export default function WorkspaceList() {
                   <Folder size={18} />
                 </div>
                 <div className="list-item-content">{ws.name}<span className="workspace-providers">{ws.providers.map(provider => <ProviderBadge key={provider} provider={provider} compact />)}</span></div>
+                {ws.providers.includes('codex') && <button className="thread-action" type="button" title={ws.isPinned ? 'Unpin project' : 'Pin project'} aria-label={ws.isPinned ? 'Unpin project' : 'Pin project'} onClick={(e) => toggleWorkspacePin(e, ws)} style={{ color: ws.isPinned ? 'var(--text-primary)' : 'var(--text-secondary)' }}><Pin size={14} fill={ws.isPinned ? 'currentColor' : 'none'} /></button>}
               </div>
               <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
                 {threadsLoading ? (

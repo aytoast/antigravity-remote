@@ -73,6 +73,24 @@ function updatePinnedThreadIds(raw, threadId, pinned) {
     };
 }
 
+function updatePinnedProjectIds(raw, workspacePath, pinned) {
+    const persistedState = raw['electron-persisted-atom-state'] || {};
+    const pinnedProjectIds = new Set(raw['pinned-project-ids'] || persistedState['pinned-project-ids'] || []);
+    if (pinned) pinnedProjectIds.add(workspacePath);
+    else pinnedProjectIds.delete(workspacePath);
+    const nextPinnedProjectIds = [...pinnedProjectIds];
+    return {
+        ...raw,
+        'pinned-project-ids': nextPinnedProjectIds,
+        ...(raw['electron-persisted-atom-state'] ? {
+            'electron-persisted-atom-state': {
+                ...persistedState,
+                'pinned-project-ids': nextPinnedProjectIds
+            }
+        } : {})
+    };
+}
+
 function setThreadPinned(threadId, pinned) {
     const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
     const next = updatePinnedThreadIds(raw, threadId, pinned);
@@ -85,6 +103,20 @@ function setThreadPinned(threadId, pinned) {
     }
     desktopStateCache = { mtimeMs: -1, data: null };
     return { id: threadId, isPinned: getDesktopState().pinnedThreadIds.has(threadId) };
+}
+
+function setWorkspacePinned(workspacePath, pinned) {
+    const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
+    const next = updatePinnedProjectIds(raw, workspacePath, pinned);
+    const temporaryPath = `${desktopStatePath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+        fs.writeFileSync(temporaryPath, JSON.stringify(next), 'utf8');
+        fs.renameSync(temporaryPath, desktopStatePath);
+    } finally {
+        if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
+    }
+    desktopStateCache = { mtimeMs: -1, data: null };
+    return { path: workspacePath, isPinned: getDesktopState().workspaces.some(workspace => workspace.path === workspacePath && workspace.isPinned) };
 }
 
 function parseTomlString(value) {
@@ -399,4 +431,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, startThread, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, updatePinnedProjectIds, updatePinnedThreadIds };
