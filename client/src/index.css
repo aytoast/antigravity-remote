@@ -1507,14 +1507,15 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.send-mode {
+.turn-actions {
   display: inline-flex;
   overflow: hidden;
   border: 1px solid var(--border-color);
   border-radius: 6px;
+  margin: 8px 0 0 10px;
 }
 
-.send-mode button {
+.turn-actions button {
   padding: 3px 7px;
   border: 0;
   background: transparent;
@@ -1524,7 +1525,7 @@ body {
   cursor: pointer;
 }
 
-.send-mode button.is-selected {
+.turn-actions button.is-selected {
   background: var(--surface-hover);
   color: var(--text-primary);
 }

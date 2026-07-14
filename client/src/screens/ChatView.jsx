@@ -47,6 +47,7 @@ export default function ChatView() {
   const [isTurnActive, setIsTurnActive] = useState(false);
   const [queuedPrompts, setQueuedPrompts] = useState([]);
   const [queueReadyToContinue, setQueueReadyToContinue] = useState(false);
+  const [sendMode, setSendMode] = useState('queue');
   const [expandedEvents, setExpandedEvents] = useState(() => new Set());
   const [slashSelection, setSlashSelection] = useState(0);
   const [skills, setSkills] = useState([addSourceSkill]);
@@ -90,6 +91,7 @@ export default function ChatView() {
     setQueuedPrompts([]);
     setQueueReadyToContinue(false);
     setIsTurnActive(false);
+    setSendMode('queue');
     setDesktopConversationId(id === 'new' ? '' : id);
     if (id === 'new') {
       setLoading(false);
@@ -149,6 +151,22 @@ export default function ChatView() {
   useEffect(() => {
     if (!desktopConversationId || desktopConversationId === 'new') return;
     refreshConversation(desktopConversationId).catch(() => {});
+  }, [desktopConversationId]);
+
+  useEffect(() => {
+    if (!desktopConversationId) return undefined;
+    const interval = window.setInterval(() => {
+      fetch(apiUrl(`/api/desktop/${desktopConversationId}/models`))
+        .then(response => response.json())
+        .then(data => {
+          if (!data.success || Array.isArray(data.data)) return;
+          const available = data.data.models.filter(model => model !== 'Antigravity');
+          setModels(available);
+          if (data.data.selected) setSelectedModel(data.data.selected);
+        })
+        .catch(() => {});
+    }, 1500);
+    return () => window.clearInterval(interval);
   }, [desktopConversationId]);
 
   useEffect(() => {
@@ -240,6 +258,7 @@ export default function ChatView() {
     if (isTurnActive) {
       setQueuedPrompts(current => [...current, { id: `queued-${Date.now()}`, role: 'user', content: prompt, isQueued: true }]);
       setInput('');
+      if (sendMode === 'steer') await stopAndContinue();
       return;
     }
     await submitPrompt(prompt);
@@ -254,7 +273,7 @@ export default function ChatView() {
   }, [isTurnActive, sending, queueReadyToContinue, queuedPrompts]);
 
   const stopAndContinue = async () => {
-    if (!desktopConversationId || !isTurnActive || queuedPrompts.length === 0 || sending) return;
+    if (!desktopConversationId || !isTurnActive || sending) return;
     setSending(true);
     setBridgeError('');
     try {
@@ -430,6 +449,7 @@ export default function ChatView() {
           </div>}
         </div>}
         <div className="composer">
+          {isTurnActive && <div className="turn-actions" role="group" aria-label="Prompt mode"><button type="button" className={sendMode === 'queue' ? 'is-selected' : ''} onClick={() => setSendMode('queue')}>Queue</button><button type="button" className={sendMode === 'steer' ? 'is-selected' : ''} onClick={() => setSendMode('steer')}>Steer</button></div>}
           <textarea
             ref={inputRef}
             rows={1}
@@ -466,7 +486,6 @@ export default function ChatView() {
                 <Plus size={16} strokeWidth={1.8} />
               </button>
             </span>
-            {queuedPrompts.length > 0 && (isTurnActive ? <button className="queue-control" type="button" onClick={stopAndContinue} disabled={sending}>Stop &amp; continue</button> : queueReadyToContinue && <button className="queue-control" type="button" onClick={continueQueuedPrompt} disabled={sending}>Continue</button>)}
             {models.length > 0 && <div className="model-picker" ref={modelPickerRef}>
               <button className="model-trigger" type="button" onClick={() => setModelMenuOpen(open => !open)} onKeyDown={(event) => event.key === 'Escape' && setModelMenuOpen(false)} aria-expanded={modelMenuOpen} aria-haspopup="listbox">
                 <span>{selectedModel}</span>
@@ -479,6 +498,7 @@ export default function ChatView() {
               </div>}
             </div>}
           </div>
+          {queuedPrompts.length > 0 && (isTurnActive ? <button className="queue-control" type="button" onClick={stopAndContinue} disabled={sending}>Stop &amp; continue</button> : queueReadyToContinue && <button className="queue-control" type="button" onClick={continueQueuedPrompt} disabled={sending}>Continue</button>)}
           {submitDisabled ? <span className="disabled-tooltip composer-submit-tooltip" data-tooltip={submitDisabledReason} tabIndex={0}>
             <button className="composer-submit" onClick={handleSend} disabled aria-label={submitDisabledReason}>
               {input.trim() ? <Send size={16} /> : <Mic size={16} />}
