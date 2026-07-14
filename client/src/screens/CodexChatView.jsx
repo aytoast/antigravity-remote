@@ -64,9 +64,15 @@ export default function CodexChatView() {
     const data = await response.json();
     if (!data.success) throw new Error(data.error || 'Codex task is unavailable');
     setTitle(data.data.thread.title);
-    setIsTurnActive(Boolean(data.data.thread.isTurnActive));
     if (data.data.thread.model) setModel(data.data.thread.model);
     reconcileMessages(data.data.messages, threadId);
+  };
+
+  const refreshDesktopActivity = async () => {
+    const response = await fetch(apiUrl('/api/codex/desktop/activity'));
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error || 'Codex Desktop activity is unavailable');
+    setIsTurnActive(Boolean(data.data.active));
   };
 
   useEffect(() => {
@@ -85,7 +91,7 @@ export default function CodexChatView() {
     if (id === 'new') { setLoading(false); setMessages([]); setQueuedPrompts([]); setIsTurnActive(false); setTitle('New Codex Task'); return; }
     setLoading(true);
     setMessages(pendingMessagesRef.current.filter(message => message.threadId === id));
-    loadThread(id).catch(error => setError(error.message)).finally(() => setLoading(false));
+    Promise.all([loadThread(id), refreshDesktopActivity()]).catch(error => setError(error.message)).finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
@@ -94,7 +100,7 @@ export default function CodexChatView() {
 
   useEffect(() => {
     if (id === 'new' || (!isTurnActive && queuedPrompts.length === 0)) return undefined;
-    const interval = window.setInterval(() => loadThread(id).catch(() => {}), 750);
+    const interval = window.setInterval(() => Promise.all([loadThread(id), refreshDesktopActivity()]).catch(() => {}), 750);
     return () => window.clearInterval(interval);
   }, [id, isTurnActive, queuedPrompts.length]);
 
@@ -141,7 +147,14 @@ export default function CodexChatView() {
       pendingMessagesRef.current.push(optimistic);
       setMessages(current => [...current, optimistic]);
       setInput('');
-      const response = await fetch(apiUrl(`/api/codex/threads/${threadId}/${mode === 'steer' ? 'steer' : 'prompt'}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mode === 'steer' ? { prompt } : { prompt, cwd: workspace?.path, model }) });
+      if (id !== 'new' && mode === 'steer') {
+        const stopResponse = await fetch(apiUrl('/api/codex/desktop/stop'), { method: 'POST' });
+        const stopData = await stopResponse.json();
+        if (!stopResponse.ok || !stopData.success) throw new Error(stopData.error || 'Codex Desktop did not stop current turn');
+      }
+      const response = id === 'new'
+        ? await fetch(apiUrl(`/api/codex/threads/${threadId}/prompt`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, cwd: workspace?.path, model }) })
+        : await fetch(apiUrl('/api/codex/desktop/prompt'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Codex prompt failed');
       setIsTurnActive(true);

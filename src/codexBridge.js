@@ -143,6 +143,79 @@ function setVisibleDesktopModel(modelId) {
     }
 }
 
+function runDesktopUiScript(script, timeout = 3000) {
+    if (process.platform !== 'win32') throw new Error('Codex Desktop automation is unavailable');
+    try {
+        return execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', timeout, windowsHide: true }).trim();
+    } catch (error) {
+        throw new Error(error.stderr?.toString().trim() || 'Codex Desktop automation failed');
+    }
+}
+
+const desktopUiSetup = [
+    'Add-Type -AssemblyName UIAutomationClient',
+    'Add-Type -AssemblyName System.Windows.Forms',
+    "Add-Type @'",
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class CodexDesktopInput {',
+    '  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);',
+    '  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);',
+    '  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);',
+    '}',
+    "'@",
+    "$process = Get-Process ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1",
+    "if (-not $process) { throw 'Codex Desktop is not running' }",
+    '$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)',
+    '$all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)'
+].join('\n');
+
+function sendDesktopPrompt(prompt) {
+    const encodedPrompt = Buffer.from(prompt, 'utf8').toString('base64');
+    const script = [
+        desktopUiSetup,
+        "$modelButton = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '^(?:GPT[- ]?)?5\\.\\d+') { $modelButton = $element; break } }",
+        "if (-not $modelButton) { throw 'Codex Desktop composer is unavailable' }",
+        '$rect = $modelButton.Current.BoundingRectangle',
+        '[CodexDesktopInput]::SetForegroundWindow($process.MainWindowHandle) | Out-Null',
+        '[CodexDesktopInput]::SetCursorPos([int]($rect.Left + 72), [int]($rect.Top - 34)) | Out-Null',
+        '[CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
+        'Start-Sleep -Milliseconds 100',
+        `$text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${encodedPrompt}'))`,
+        '$clipboardText = Get-Clipboard -Raw -ErrorAction SilentlyContinue',
+        'Set-Clipboard -Value $text',
+        '[System.Windows.Forms.SendKeys]::SendWait("^v")',
+        'Start-Sleep -Milliseconds 80',
+        '[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")',
+        'if ($null -ne $clipboardText) { Set-Clipboard -Value $clipboardText }',
+        "Write-Output 'submitted'"
+    ].join('\n');
+    const result = runDesktopUiScript(script, 5000);
+    if (result !== 'submitted') throw new Error('Codex Desktop did not submit prompt');
+    return { accepted: true };
+}
+
+function getDesktopTurnActive() {
+    const script = [
+        desktopUiSetup,
+        "for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '\\b(stop|cancel|interrupt)\\b') { Write-Output 'active'; exit 0 } }",
+        "Write-Output 'idle'"
+    ].join('\n');
+    return runDesktopUiScript(script) === 'active';
+}
+
+function stopDesktopTurn() {
+    const script = [
+        desktopUiSetup,
+        "$stop = $null; for ($i = 0; $i -lt $all.Count; $i++) { $element = $all.Item($i); if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '\\b(stop|cancel|interrupt)\\b') { $stop = $element; break } }",
+        "if (-not $stop) { throw 'Codex Desktop is not running a turn' }",
+        '$stop.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()',
+        "Write-Output 'stopped'"
+    ].join('\n');
+    if (runDesktopUiScript(script) !== 'stopped') throw new Error('Codex Desktop did not stop turn');
+    return { stopped: true };
+}
+
 function getDesktopThreadModel(threadId) {
     const visibleModel = getVisibleDesktopModel();
     if (visibleModel) return visibleModel;
@@ -561,4 +634,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, desktopModelLabelFromId, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getDesktopTurnActive, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendDesktopPrompt, sendPrompt, setAutomationEnabled, setThreadPinned, setVisibleDesktopModel, setWorkspacePinned, startThread, steerPrompt, stopDesktopTurn, updatePinnedProjectIds, updatePinnedThreadIds };

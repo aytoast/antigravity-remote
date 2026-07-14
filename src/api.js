@@ -80,6 +80,22 @@ router.put('/codex/threads/:id/model', (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/codex/desktop/activity', (req, res) => {
+    try { res.json({ success: true, data: { active: codexBridge.getDesktopTurnActive() } }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/codex/desktop/prompt', (req, res) => {
+    if (typeof req.body?.prompt !== 'string' || !req.body.prompt.trim()) return res.status(400).json({ success: false, error: 'prompt is required' });
+    try { res.json({ success: true, data: codexBridge.sendDesktopPrompt(req.body.prompt.trim()) }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
+router.post('/codex/desktop/stop', (req, res) => {
+    try { res.json({ success: true, data: codexBridge.stopDesktopTurn() }); }
+    catch (error) { res.status(409).json({ success: false, error: error.message }); }
+});
+
 router.post('/codex/threads', async (req, res) => {
     try { res.json({ success: true, data: await codexBridge.startThread(req.body || {}) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
