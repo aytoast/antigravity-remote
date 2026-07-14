@@ -301,6 +301,7 @@ async function openDesktopThread(threadId) {
         '$taskRect = $task.Current.BoundingRectangle',
         '[CodexDesktopInput]::SetForegroundWindow($process.MainWindowHandle) | Out-Null',
         '[CodexDesktopInput]::SetCursorPos([int]($taskRect.Left + 100), [int]($taskRect.Top + ($taskRect.Height / 2))) | Out-Null',
+        'Start-Sleep -Milliseconds 50',
         '[CodexDesktopInput]::mouse_event(0x2, 0, 0, 0, [UIntPtr]::Zero); [CodexDesktopInput]::mouse_event(0x4, 0, 0, 0, [UIntPtr]::Zero)',
         '$confirmed = $false; for ($attempt = 0; $attempt -lt 20 -and -not $confirmed; $attempt++) { Start-Sleep -Milliseconds 100; $confirmed = $null -ne (Find-TargetHeader) }',
         "if (-not $confirmed) { throw 'Codex Desktop task selection was not confirmed' }",
