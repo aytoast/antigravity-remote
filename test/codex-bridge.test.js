@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { commandInvocation, formatAutomationSchedule, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedProjectIds, updatePinnedThreadIds } = require('../src/codexBridge');
+const { commandInvocation, formatAutomationSchedule, modelFromRolloutText, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedProjectIds, updatePinnedThreadIds } = require('../src/codexBridge');
 
 test('Codex bridge uses repo-pinned App Server', () => {
     const invocation = commandInvocation();
@@ -107,6 +107,15 @@ test('Codex active thread exposes active turn state', () => {
 
     assert.equal(thread.isTurnActive, true);
     assert.equal(thread.activeTurnId, 'turn-active');
+});
+
+test('Codex desktop model wins over mobile bridge model', () => {
+    const rollout = [
+        { type: 'turn_context', payload: { model: 'gpt-5.6-terra', approval_policy: 'never', collaboration_mode: { settings: { developer_instructions: 'desktop' } } } },
+        { type: 'turn_context', payload: { model: 'gpt-5.6-sol', approval_policy: 'on-request', collaboration_mode: { settings: { developer_instructions: null } } } }
+    ].map(entry => JSON.stringify(entry)).join('\n');
+
+    assert.equal(modelFromRolloutText(rollout), 'gpt-5.6-terra');
 });
 
 test('Codex messages map user, assistant, and command items', () => {

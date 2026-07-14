@@ -51,6 +51,7 @@ export default function CodexChatView() {
     if (!data.success) throw new Error(data.error || 'Codex task is unavailable');
     setTitle(data.data.thread.title);
     setIsTurnActive(Boolean(data.data.thread.isTurnActive));
+    if (data.data.thread.model) setModel(data.data.thread.model);
     reconcileMessages(data.data.messages, threadId);
   };
 
@@ -82,6 +83,16 @@ export default function CodexChatView() {
     const interval = window.setInterval(() => loadThread(id).catch(() => {}), 750);
     return () => window.clearInterval(interval);
   }, [id, isTurnActive, queuedPrompts.length]);
+
+  useEffect(() => {
+    if (id === 'new') return undefined;
+    const syncModel = () => fetch(apiUrl(`/api/codex/threads/${id}/model`)).then(response => response.json()).then(data => {
+      if (data.success && data.data.model) setModel(data.data.model);
+    }).catch(() => {});
+    syncModel();
+    const interval = window.setInterval(syncModel, 1500);
+    return () => window.clearInterval(interval);
+  }, [id]);
 
   useEffect(() => {
     const inputElement = inputRef.current;

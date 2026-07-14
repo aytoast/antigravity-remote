@@ -69,6 +69,11 @@ router.get('/codex/threads/:id', async (req, res) => {
     catch (error) { res.status(503).json({ success: false, error: error.message }); }
 });
 
+router.get('/codex/threads/:id/model', (req, res) => {
+    try { res.json({ success: true, data: { model: codexBridge.getDesktopThreadModel(req.params.id) } }); }
+    catch (error) { res.status(503).json({ success: false, error: error.message }); }
+});
+
 router.post('/codex/threads', async (req, res) => {
     try { res.json({ success: true, data: await codexBridge.startThread(req.body || {}) }); }
     catch (error) { res.status(503).json({ success: false, error: error.message }); }

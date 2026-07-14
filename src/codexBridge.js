@@ -17,6 +17,7 @@ const pending = new Map();
 const events = new EventEmitter();
 const activeTurns = new Map();
 let desktopStateCache = { mtimeMs: -1, data: null };
+const desktopModelCache = new Map();
 
 function normalizeDesktopState(raw = {}) {
     const state = { ...(raw['electron-persisted-atom-state'] || {}), ...raw };
@@ -53,6 +54,43 @@ function getDesktopState() {
         return data;
     } catch {
         return normalizeDesktopState();
+    }
+}
+
+function modelFromRolloutText(text) {
+    let desktopModel = '';
+    let fallbackModel = '';
+    for (const line of text.split(/\r?\n/)) {
+        if (!line.includes('"type":"turn_context"')) continue;
+        try {
+            const entry = JSON.parse(line);
+            const context = entry.type === 'turn_context' ? entry.payload : entry.payload?.type === 'turn_context' ? entry.payload : null;
+            if (!context?.model) continue;
+            fallbackModel = context.model;
+            const developerInstructions = context.collaboration_mode?.settings?.developer_instructions;
+            if (developerInstructions || context.approval_policy !== 'on-request') desktopModel = context.model;
+        } catch {}
+    }
+    return desktopModel || fallbackModel || null;
+}
+
+function getDesktopThreadModel(threadId) {
+    if (!fs.existsSync(stateDatabasePath)) return null;
+    let database;
+    try {
+        database = new Database(stateDatabasePath, { readonly: true, fileMustExist: true });
+        const row = database.prepare('SELECT rollout_path FROM threads WHERE id = ?').get(threadId);
+        if (!row?.rollout_path || !fs.existsSync(row.rollout_path)) return null;
+        const mtimeMs = fs.statSync(row.rollout_path).mtimeMs;
+        const cached = desktopModelCache.get(threadId);
+        if (cached?.mtimeMs === mtimeMs) return cached.model;
+        const model = modelFromRolloutText(fs.readFileSync(row.rollout_path, 'utf8'));
+        desktopModelCache.set(threadId, { mtimeMs, model });
+        return model;
+    } catch {
+        return null;
+    } finally {
+        database?.close();
     }
 }
 
@@ -409,7 +447,9 @@ async function readThread(id) {
     const result = await request('thread/read', { threadId: id, includeTurns: true });
     const thread = result.thread;
     const messages = normalizeMessages(thread);
-    return { thread: normalizeThread(thread, getDesktopState()), messages };
+    const normalizedThread = normalizeThread(thread, getDesktopState());
+    normalizedThread.model = getDesktopThreadModel(id) || normalizedThread.model;
+    return { thread: normalizedThread, messages };
 }
 
 async function listModels() {
@@ -449,4 +489,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, listAutomations, listModels, listThreads, listWorkspaces, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
