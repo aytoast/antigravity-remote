@@ -51,6 +51,25 @@ export default function ChatView() {
   const modelPickerRef = useRef(null);
   const positionedInitialHistory = useRef(false);
   const userScrolledAway = useRef(false);
+  const pendingMessagesRef = useRef([]);
+
+  const cleanMessages = rawMessages => rawMessages.map(message => ({
+    ...message,
+    content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+  }));
+
+  const reconcileMessages = (serverMessages, conversationId) => {
+    const matchedServerMessages = new Set();
+    const pending = pendingMessagesRef.current.filter(message => message.conversationId === conversationId);
+    const remaining = pending.filter(message => {
+      const matchIndex = serverMessages.findIndex((item, index) => !matchedServerMessages.has(index) && item.role === 'user' && item.content === message.content);
+      if (matchIndex < 0) return true;
+      matchedServerMessages.add(matchIndex);
+      return false;
+    });
+    pendingMessagesRef.current = [...pendingMessagesRef.current.filter(message => message.conversationId !== conversationId), ...remaining];
+    setMessages([...serverMessages, ...remaining]);
+  };
 
   const scrollToBottom = () => {
     const container = chatScrollRef.current;
@@ -80,18 +99,14 @@ export default function ChatView() {
       return;
     }
     setLoading(true);
-    setMessages([]);
+    setMessages(pendingMessagesRef.current.filter(message => message.conversationId === id));
     fetch(apiUrl(`/api/threads/${id}`))
       .then(res => res.json())
       .then(data => {
         if (data.success) {
           if (data.thread?.title) setThreadTitle(data.thread.title);
           // ensure data is clean text since content might be XML/JSON strings
-          const cleanMsgs = data.data.map(m => ({
-            ...m,
-            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-          }));
-          setMessages(cleanMsgs);
+          reconcileMessages(cleanMessages(data.data), id);
         }
       })
       .catch(err => console.error(err))
@@ -156,6 +171,9 @@ export default function ChatView() {
     setBridgeError('');
     const prompt = input.trim();
     const targetId = desktopConversationId;
+    const optimistic = { id: `mobile-${Date.now()}`, role: 'user', content: prompt, conversationId: targetId };
+    pendingMessagesRef.current.push(optimistic);
+    setMessages(previous => [...previous, optimistic]);
     setInput('');
     try {
       const response = await fetch(apiUrl(`/api/desktop/${targetId}/prompt`), {
@@ -166,25 +184,23 @@ export default function ChatView() {
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Desktop prompt failed');
       const conversationId = data.data?.id || targetId;
+      optimistic.conversationId = conversationId;
       if (id === 'new' && conversationId !== 'new') setDesktopConversationId(conversationId);
-      setMessages(previous => [...previous, { id: `mobile-${Date.now()}`, role: 'user', content: prompt }]);
       let attempts = 0;
       const refresh = async () => {
         attempts += 1;
         try {
           const history = await fetch(apiUrl(`/api/threads/${conversationId}`)).then(result => result.json());
           if (history.success) {
-            const cleanMsgs = history.data.map(message => ({
-              ...message,
-              content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
-            }));
-            setMessages(cleanMsgs);
+            reconcileMessages(cleanMessages(history.data), conversationId);
           }
         } catch {}
         if (attempts < 30) window.setTimeout(refresh, attempts < 12 ? 250 : 750);
       };
       window.setTimeout(refresh, 150);
     } catch (error) {
+      pendingMessagesRef.current = pendingMessagesRef.current.filter(message => message.id !== optimistic.id);
+      setMessages(previous => previous.filter(message => message.id !== optimistic.id));
       setInput(prompt);
       setBridgeError(error.message);
     } finally {

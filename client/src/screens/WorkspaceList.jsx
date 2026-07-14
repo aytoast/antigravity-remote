@@ -312,15 +312,17 @@ export default function WorkspaceList() {
 
   const flatDisplay = displaySelection.includes('None');
   const flatThreads = activeThreads.filter(thread => !isThreadPinned(thread)).sort(sortThreads);
+  const pinnedWorkspaces = orderedWorkspaces.filter(workspace => workspace.isPinned);
+  const projectWorkspaces = orderedWorkspaces.filter(workspace => !workspace.isPinned);
 
   return (
     <div className="workspace-list-page">
       <div className="container animate-fade-in" style={{ paddingTop: '20px' }}>
         {loading ? <HomeSkeleton /> : <>
         {/* Pinned Section */}
-        {pinnedThreads.length > 0 && (
+        {(pinnedThreads.length > 0 || (!flatDisplay && pinnedWorkspaces.length > 0)) && (
           <div className="section">
-            <div className="section-header">Pinned Conversations</div>
+            <div className="section-header">Pinned</div>
             {pinnedThreads.map(t => (
               <div key={t.id} className="list-item thread-item" onClick={() => handleThreadClick(t)}>
                 <div className="list-item-content">
@@ -338,6 +340,25 @@ export default function WorkspaceList() {
                 </div>
               </div>
             ))}
+          {!flatDisplay && pinnedWorkspaces.length > 0 && <>
+            {pinnedWorkspaces.map((ws, index) => (
+              <div key={ws.id} className="workspace-section-enter" style={{ marginBottom: '8px', '--stagger': `${index * 35}ms` }}>
+                <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id, ws.name)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id, ws.name); }}>
+                  <div className="list-item-icon"><Folder size={18} /></div>
+                  <div className="list-item-content">{ws.name}<span className="workspace-providers">{ws.providers.map(provider => <ProviderBadge key={provider} provider={provider} compact />)}</span></div>
+                  <button className="thread-action" type="button" title="Unpin project" aria-label="Unpin project" onClick={(e) => toggleWorkspacePin(e, ws)} style={{ color: 'var(--text-primary)' }}><Pin size={14} fill="currentColor" /></button>
+                </div>
+                <div className={`workspace-contents${expandedWorkspaces.has(ws.id) ? ' is-expanded' : ''}`}>
+                  {threadsLoading ? <div className="inline-thread-skeleton" aria-busy="true" aria-label="Loading conversations"><span /><span /></div> : projectsMap[ws.name].length === 0 ? <div className="empty-text">No conversations yet</div> : projectsMap[ws.name].map((t, threadIndex) => (
+                    <div key={`${t.provider}-${t.id}`} className="list-item nested-thread conversation-enter" style={{ '--stagger': `${threadIndex * 25}ms` }} onClick={() => handleThreadClick(t)}>
+                      <div className="list-item-content"><div className="conversation-title-line"><ProviderBadge provider={t.provider || 'antigravity'} compact /><div className="list-item-title">{t.title}</div></div></div>
+                      <div className="list-item-right"><ThreadTime thread={t} /><button className="thread-action" type="button" title={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} aria-label={isThreadPinned(t) ? 'Unpin conversation' : 'Pin conversation'} onClick={(e) => togglePin(e, t)} style={{ color: isThreadPinned(t) ? 'var(--text-primary)' : 'var(--text-secondary)' }}><Pin size={14} fill={isThreadPinned(t) ? 'currentColor' : 'none'} /></button><button className="thread-action" type="button" title="Archive conversation" aria-label="Archive conversation" onClick={(e) => archiveThread(e, t)}><Archive size={14} /></button></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>}
           </div>
         )}
 
@@ -367,7 +388,7 @@ export default function WorkspaceList() {
             </div>
           </div>
           {desktopNotice && <div className="desktop-notice" role="status">{desktopNotice}</div>}
-          {!flatDisplay && orderedWorkspaces.map((ws, index) => (
+          {!flatDisplay && projectWorkspaces.map((ws, index) => (
             <div key={ws.id} className="workspace-section-enter" style={{ marginBottom: '8px', '--stagger': `${index * 35}ms` }}>
               <div className="list-item project-item" onClick={(e) => toggleWorkspace(e, ws.id, ws.name)} role="button" tabIndex={0} aria-expanded={expandedWorkspaces.has(ws.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleWorkspace(e, ws.id, ws.name); }}>
                 <div className="list-item-icon">

@@ -23,13 +23,27 @@ export default function CodexChatView() {
   const [modelOpen, setModelOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const scrollRef = useRef(null);
+  const pendingMessagesRef = useRef([]);
+
+  const reconcileMessages = (serverMessages, threadId) => {
+    const matchedServerMessages = new Set();
+    const pending = pendingMessagesRef.current.filter(message => message.threadId === threadId);
+    const remaining = pending.filter(message => {
+      const matchIndex = serverMessages.findIndex((item, index) => !matchedServerMessages.has(index) && item.role === 'user' && item.content === message.content);
+      if (matchIndex < 0) return true;
+      matchedServerMessages.add(matchIndex);
+      return false;
+    });
+    pendingMessagesRef.current = [...pendingMessagesRef.current.filter(message => message.threadId !== threadId), ...remaining];
+    setMessages([...serverMessages, ...remaining]);
+  };
 
   const loadThread = async threadId => {
     const response = await fetch(apiUrl(`/api/codex/threads/${threadId}`));
     const data = await response.json();
     if (!data.success) throw new Error(data.error || 'Codex task is unavailable');
     setTitle(data.data.thread.title);
-    setMessages(data.data.messages);
+    reconcileMessages(data.data.messages, threadId);
   };
 
   useEffect(() => {
@@ -47,6 +61,7 @@ export default function CodexChatView() {
     setError('');
     if (id === 'new') { setLoading(false); setMessages([]); setTitle('New Codex Task'); return; }
     setLoading(true);
+    setMessages(pendingMessagesRef.current.filter(message => message.threadId === id));
     loadThread(id).catch(error => setError(error.message)).finally(() => setLoading(false));
   }, [id]);
 
@@ -67,11 +82,13 @@ export default function CodexChatView() {
         if (!response.ok || !data.success) throw new Error(data.error || 'Codex task failed to start');
         threadId = data.data.id;
       }
+      const optimistic = { id: `local-${Date.now()}`, role: 'user', content: prompt, threadId };
+      pendingMessagesRef.current.push(optimistic);
+      setMessages(current => [...current, optimistic]);
+      setInput('');
       const response = await fetch(apiUrl(`/api/codex/threads/${threadId}/prompt`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, cwd: workspace?.path, model }) });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Codex prompt failed');
-      setInput('');
-      setMessages(current => [...current, { id: `local-${Date.now()}`, role: 'user', content: prompt }]);
       if (id === 'new') navigate(`/chat/codex/${threadId}`);
       else {
         let attempts = 0;
@@ -82,7 +99,12 @@ export default function CodexChatView() {
         };
         window.setTimeout(refresh, 250);
       }
-    } catch (requestError) { setError(requestError.message); }
+    } catch (requestError) {
+      pendingMessagesRef.current = pendingMessagesRef.current.filter(message => message.content !== prompt);
+      setMessages(current => current.filter(message => message.content !== prompt || !String(message.id).startsWith('local-')));
+      setInput(prompt);
+      setError(requestError.message);
+    }
     finally { setSending(false); }
   };
 
