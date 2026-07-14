@@ -363,7 +363,31 @@ function updatePinnedProjectIds(raw, workspacePath, pinned) {
     };
 }
 
-function setThreadPinned(threadId, pinned) {
+async function setThreadPinned(threadId, pinned) {
+    let live = false;
+    const target = await resolveDesktopThreadTarget(threadId);
+    if (target?.title && process.platform === 'win32') {
+        const encodedTitle = Buffer.from(target.title, 'utf8').toString('base64');
+        const actionName = pinned ? 'Pin task' : 'Unpin task';
+        const verifiedName = pinned ? 'Unpin task' : 'Pin task';
+        const script = [
+            desktopUiSetup,
+            `$target = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${encodedTitle}'))`,
+            `$actionName = '${actionName}'`,
+            `$verifiedName = '${verifiedName}'`,
+            '$listType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::ListItem)',
+            '$buttonType = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)',
+            '$targetName = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $target)',
+            'function Find-TaskButton($name) { $items = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.AndCondition($listType, $targetName))); for ($itemIndex = 0; $itemIndex -lt $items.Count; $itemIndex++) { $buttons = $items.Item($itemIndex).FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonType); for ($buttonIndex = 0; $buttonIndex -lt $buttons.Count; $buttonIndex++) { if ($buttons.Item($buttonIndex).Current.Name -eq $name) { return $buttons.Item($buttonIndex) } } }; return $null }',
+            '$action = Find-TaskButton $actionName',
+            "if (-not $action -and (Find-TaskButton $verifiedName)) { Write-Output 'live'; exit 0 }",
+            "if (-not $action) { Write-Output 'unavailable'; exit 0 }",
+            '$action.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()',
+            '$verified = $false; for ($attempt = 0; $attempt -lt 10; $attempt++) { Start-Sleep -Milliseconds 100; if (Find-TaskButton $verifiedName) { $verified = $true; break } }',
+            "if ($verified) { Write-Output 'live' } else { Write-Output 'unavailable' }"
+        ].join('\n');
+        try { live = runDesktopUiScript(script, { timeout: 3500, operation: 'set-thread-pinned' }) === 'live'; } catch {}
+    }
     const raw = JSON.parse(fs.readFileSync(desktopStatePath, 'utf8'));
     const next = updatePinnedThreadIds(raw, threadId, pinned);
     const temporaryPath = `${desktopStatePath}.${process.pid}.${Date.now()}.tmp`;
@@ -374,7 +398,7 @@ function setThreadPinned(threadId, pinned) {
         if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
     }
     desktopStateCache = { mtimeMs: -1, data: null };
-    return { id: threadId, isPinned: getDesktopState().pinnedThreadIds.has(threadId) };
+    return { id: threadId, isPinned: getDesktopState().pinnedThreadIds.has(threadId), live };
 }
 
 function setWorkspacePinned(workspacePath, pinned) {

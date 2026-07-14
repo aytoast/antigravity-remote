@@ -330,7 +330,7 @@ export default function WorkspaceList() {
           body: JSON.stringify({ pinned: shouldPin })
         });
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Codex pin state did not update');
+        if (!response.ok || !data.success || data.data?.live !== true) throw new Error(data.error || 'Codex pin state did not update');
         setThreads(current => current.map(item => item.provider === 'codex' && item.id === threadId ? { ...item, isPinned: data.data.isPinned } : item));
       } catch (error) {
         setThreads(current => current.map(item => item.provider === 'codex' && item.id === threadId ? { ...item, isPinned: thread.isPinned } : item));
