@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { commandInvocation, formatAutomationSchedule, modelFromRolloutText, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedProjectIds, updatePinnedThreadIds } = require('../src/codexBridge');
+const { commandInvocation, formatAutomationSchedule, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, updatePinnedProjectIds, updatePinnedThreadIds } = require('../src/codexBridge');
 
 test('Codex bridge uses repo-pinned App Server', () => {
     const invocation = commandInvocation();
@@ -116,6 +116,12 @@ test('Codex desktop model wins over mobile bridge model', () => {
     ].map(entry => JSON.stringify(entry)).join('\n');
 
     assert.equal(modelFromRolloutText(rollout), 'gpt-5.6-terra');
+});
+
+test('Codex desktop model label maps to App Server model ID', () => {
+    assert.equal(modelIdFromDesktopLabel('5.6 Luna Medium'), 'gpt-5.6-luna');
+    assert.equal(modelIdFromDesktopLabel('5.6 Terra High'), 'gpt-5.6-terra');
+    assert.equal(modelIdFromDesktopLabel('GPT-5.4 Mini'), 'gpt-5.4-mini');
 });
 
 test('Codex messages map user, assistant, and command items', () => {

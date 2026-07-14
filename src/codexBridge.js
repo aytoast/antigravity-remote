@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const Database = require('better-sqlite3');
 const fs = require('fs');
@@ -18,6 +18,7 @@ const events = new EventEmitter();
 const activeTurns = new Map();
 let desktopStateCache = { mtimeMs: -1, data: null };
 const desktopModelCache = new Map();
+let visibleDesktopModelCache = { expiresAt: 0, model: null };
 
 function normalizeDesktopState(raw = {}) {
     const state = { ...(raw['electron-persisted-atom-state'] || {}), ...raw };
@@ -74,7 +75,40 @@ function modelFromRolloutText(text) {
     return desktopModel || fallbackModel || null;
 }
 
+function modelIdFromDesktopLabel(label) {
+    const match = String(label || '').trim().match(/^(?:GPT[- ]?)?(5\.\d+(?:\.\d+)?)\s*(Sol|Terra|Luna|Mini)?\b/i);
+    if (!match) return null;
+    return `gpt-${match[1]}${match[2] ? `-${match[2].toLowerCase()}` : ''}`;
+}
+
+function getVisibleDesktopModel() {
+    if (visibleDesktopModelCache.expiresAt > Date.now()) return visibleDesktopModelCache.model;
+    if (process.platform !== 'win32') return null;
+    const script = [
+        'Add-Type -AssemblyName UIAutomationClient',
+        "$process = Get-Process ChatGPT -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1",
+        'if (-not $process) { exit 0 }',
+        '$root = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)',
+        '$all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)',
+        'for ($i = 0; $i -lt $all.Count; $i++) {',
+        '  $element = $all.Item($i)',
+        "  if ($element.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $element.Current.Name -match '^(?:GPT[- ]?)?5\\.\\d+') { Write-Output $element.Current.Name; break }",
+        '}'
+    ].join('; ');
+    try {
+        const label = execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', timeout: 2000, windowsHide: true }).trim();
+        const model = modelIdFromDesktopLabel(label);
+        visibleDesktopModelCache = { expiresAt: Date.now() + 1000, model };
+        return model;
+    } catch {
+        visibleDesktopModelCache = { expiresAt: Date.now() + 250, model: null };
+        return null;
+    }
+}
+
 function getDesktopThreadModel(threadId) {
+    const visibleModel = getVisibleDesktopModel();
+    if (visibleModel) return visibleModel;
     if (!fs.existsSync(stateDatabasePath)) return null;
     let database;
     try {
@@ -463,11 +497,12 @@ async function startThread({ cwd, model } = {}) {
 }
 
 async function sendPrompt(id, { prompt, cwd, model } = {}) {
-    await request('thread/resume', { threadId: id, cwd: cwd || null, model: model || null, approvalPolicy: 'on-request' });
+    const selectedModel = getDesktopThreadModel(id) || model || null;
+    await request('thread/resume', { threadId: id, cwd: cwd || null, model: selectedModel, approvalPolicy: 'on-request' });
     const result = await request('turn/start', {
         threadId: id,
         cwd: cwd || null,
-        model: model || null,
+        model: selectedModel,
         input: [{ type: 'text', text: prompt }]
     });
     if (result?.turn?.id) activeTurns.set(id, result.turn.id);
@@ -489,4 +524,4 @@ async function archiveThread(id) {
     await request('thread/archive', { threadId: id });
 }
 
-module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
+module.exports = { archiveThread, commandInvocation, events, formatAutomationSchedule, getAutomation, getDesktopThreadModel, getVisibleDesktopModel, listAutomations, listModels, listThreads, listWorkspaces, modelFromRolloutText, modelIdFromDesktopLabel, normalizeAutomation, normalizeContent, normalizeDesktopState, normalizeMessages, normalizeThread, parseAutomationToml, readThread, sendPrompt, setAutomationEnabled, setThreadPinned, setWorkspacePinned, startThread, steerPrompt, updatePinnedProjectIds, updatePinnedThreadIds };
